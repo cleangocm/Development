@@ -1,0 +1,23 @@
+{
+  "folders": [
+    { "name": "CleanGo", "path": "." },
+    { "name": "CleanGo Web", "path": "frontend/Laundry-Service-Booking-App-Frontend" },
+    { "name": "Firebase Functions", "path": "functions" },
+    { "name": "Flutter Mobile", "path": "app/App source file" },
+    { "name": "Legacy API", "path": "backend/Laundry-Service-Booking-App-Backend" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/build": true,
+      "**/__MACOSX": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/build": true,
+      "**/__MACOSX": true
+    }
+  }
+}

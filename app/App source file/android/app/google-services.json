@@ -1,0 +1,27 @@
+{
+  "project_info": {
+    "project_number": "843085290359",
+    "project_id": "clean-go-150fb",
+    "storage_bucket": "clean-go-150fb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:843085290359:android:747d64b66c25dbbde65f72",
+        "android_client_info": {
+          "package_name": "com.cleangocm.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [{
+        "current_key": "AIzaSyDnb971RTm5YxPwWXdJnJhfq__Z5gCTCls"
+      }],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

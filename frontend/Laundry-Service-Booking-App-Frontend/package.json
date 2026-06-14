@@ -1,0 +1,45 @@
+{
+  "name": "cleango-web-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack -p 3001",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@paypal/react-paypal-js": "^9.0.1",
+    "@stripe/react-stripe-js": "^5.6.0",
+    "@stripe/stripe-js": "^8.7.0",
+    "@types/leaflet": "^1.9.21",
+    "axios": "^1.13.4",
+    "firebase": "^12.8.0",
+    "i18next": "^25.8.0",
+    "i18next-browser-languagedetector": "^8.2.0",
+    "jspdf": "^4.1.0",
+    "jspdf-autotable": "^5.0.7",
+    "leaflet": "^1.9.4",
+    "next": "^16.1.6",
+    "next-translate": "^2.6.2",
+    "nookies": "^2.5.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-i18next": "^16.5.4",
+    "react-icons": "^5.5.0",
+    "stripe": "^20.3.0",
+    "swiper": "^12.0.3",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/google.maps": "^3.58.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
