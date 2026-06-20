@@ -43,6 +43,7 @@ dependencies:
   google_fonts: ^6.3.2
   google_sign_in: ^6.3.0
   image_picker: 1.1.2
+  flutter_stripe: 12.3.0
   gradient_borders: ^1.0.2
   iconsax: ^0.0.8
   http: ^1.6.0
@@ -106,3 +107,6 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+dependency_overrides:
+  stripe_android: 12.3.0
