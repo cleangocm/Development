@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useScrollAnimation } from '@/hooks';
 import { useTheme } from '@/context';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import api from '@/services/api';
+import { CLEAN_GO_SUBSCRIPTION_PLANS, formatXaf } from '@/data/cleangoPlans';
 
 interface ServiceData {
   _id: string;
@@ -20,13 +20,31 @@ interface ServiceData {
 }
 
 const Services = () => {
-  const { t, formatPrice } = useTheme();
+  const { t } = useTheme();
   const { ref, isVisible } = useScrollAnimation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const sliderRef = useRef<HTMLDivElement>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [services, setServices] = useState<ServiceData[]>([]);
+  const [services] = useState<ServiceData[]>(() => {
+    const planImages = [
+      '/Images/brand/plans/basic-plan.png',
+      '/Images/brand/plans/standard-plan.png',
+      '/Images/brand/plans/premium-plan.png',
+      '/Images/brand/plans/business-plan.png',
+    ];
+
+    return CLEAN_GO_SUBSCRIPTION_PLANS.slice(0, 4).map((plan, index) => ({
+      _id: plan.id,
+      name: plan.name,
+      slug: 'subscription-plans',
+      shortDescription: `${plan.description} ${plan.bestFor}.`,
+      image: planImages[index],
+      pricePerKg: plan.priceXaf,
+      pricePerItem: plan.priceXaf,
+      pricingType: 'plan',
+    }));
+  });
 
   // Calculate items per view based on window width
   const [itemsVisible, setItemsVisible] = useState(4);
@@ -40,21 +58,6 @@ const Services = () => {
     updateItemsVisible();
     window.addEventListener('resize', updateItemsVisible);
     return () => window.removeEventListener('resize', updateItemsVisible);
-  }, []);
-
-  // Fetch services from backend API
-  useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const res = await api.get('/services');
-        if (res.data?.status === 'success' && res.data?.data) {
-          setServices(res.data.data);
-        }
-      } catch {
-        // Silently fail
-      }
-    };
-    fetchServices();
   }, []);
 
   const maxIndex = Math.max(0, services.length - itemsVisible);
@@ -167,7 +170,7 @@ const Services = () => {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg sm:rounded-xl">
-                        <span className="text-gray-400 text-2xl">🧺</span>
+                      <span className="text-gray-400 text-2xl">CG</span>
                       </div>
                     )}
                   </div>
@@ -177,12 +180,12 @@ const Services = () => {
                     <div className="flex items-center justify-between mb-2 md:mb-3 gap-2">
                       <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#0f2744] dark:text-white truncate">{service.name}</h3>
                       <span className="text-[#0f2744] dark:text-white font-bold text-sm sm:text-base md:text-lg shrink-0">
-                        {formatPrice(service.pricingType === 'per_kg' ? service.pricePerKg : service.pricePerItem)}
+                        {formatXaf(service.pricingType === 'per_kg' ? service.pricePerKg : service.pricePerItem)}
                       </span>
                     </div>
                     <p className="text-[#5a6a7a] dark:text-gray-300 text-xs sm:text-sm mb-3 sm:mb-4 md:mb-5 leading-relaxed grow">{service.shortDescription}</p>
                     <Link
-                      href={`/services/${service.slug}`}
+                      href="/subscription-plans"
                       className="w-full block text-center bg-[#0f2744] dark:bg-[#00BFA6] text-white py-2.5 sm:py-3 md:py-3.5 rounded-lg sm:rounded-xl border-2 border-[#0f2744] dark:border-[#00BFA6] font-semibold text-xs sm:text-sm md:text-base transition-all duration-300 hover:bg-[#1a3a5c] dark:hover:bg-[#00A892] hover:border-[#1a3a5c] dark:hover:border-[#00A892] hover:shadow-lg mt-auto"
                     >
                       {t('getTheService')}

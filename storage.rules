@@ -2,13 +2,46 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    match /users/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null
-        && (request.auth.uid == userId || request.auth.token.admin == true);
+    function signedIn() {
+      return request.auth != null;
     }
 
-    match /bookings/{bookingId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+    function isAdmin() {
+      return signedIn()
+        && (('admin' in request.auth.token && request.auth.token.admin == true)
+          || ('role' in request.auth.token && request.auth.token.role == 'admin'));
+    }
+
+    function validImage() {
+      return request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /users/{userId}/{allPaths=**} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if signedIn()
+        && (request.auth.uid == userId || isAdmin())
+        && validImage();
+    }
+
+    match /pickupProof/{customerId}/{collectorId}/{pickupId}/{fileName} {
+      allow read: if signedIn()
+        && (request.auth.uid == customerId
+          || request.auth.uid == collectorId
+          || isAdmin());
+      allow write: if signedIn()
+        && (request.auth.uid == collectorId || isAdmin())
+        && validImage();
+    }
+
+    match /paymentReceipts/{customerId}/{paymentId}/{fileName} {
+      allow read: if signedIn()
+        && (request.auth.uid == customerId || isAdmin());
+      allow write: if signedIn()
+        && request.auth.uid == customerId
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf');
     }
 
     match /{allPaths=**} {

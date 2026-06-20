@@ -55,7 +55,7 @@ const Hero = () => {
       setNetworkError(false);
       
       try {
-        // Try to get user's real location (falls back to Dhaka default if denied)
+        // Try to get user's real location for nearby CleanGo coverage.
         await getUserLocation();
         
         const { userLocation: loc } = useStoreStore.getState();
@@ -135,48 +135,63 @@ const Hero = () => {
 
   // Handle Book Now
   const handleBookNow = () => {
-    if (selectedStore) {
-      router.push(`/stores/${selectedStore.slug}`);
-    } else {
-      router.push('/stores');
-    }
+    router.push('/subscription-plans');
   };
 
   // Handle View All Stores
   const handleViewAllStores = () => {
-    router.push('/stores');
+    router.push('/subscription-plans');
   };
 
   return (
-    <section className="relative min-h-screen flex items-center bg-[#f0f4f8]">
+    <section className="relative min-h-screen flex items-center overflow-hidden bg-[#0F2744]">
       {/* Background Image */}
       <div className="absolute inset-0 overflow-hidden">
         <Image
-          src="/Images/Home/Hero.png"
-          alt="Laundry Background"
+          src="/Images/brand/cleango-hero-card.png"
+          alt="CleanGo waste collection"
           fill
           sizes="100vw"
-          className="object-cover "
+          className="object-cover opacity-55"
           priority
         />
-        <div className="absolute inset-0 bg-linear-to-r from-white/35 via-white/10 to-transparent"></div>
+        <div className="absolute inset-0 bg-linear-to-r from-[#0F2744]/95 via-[#0F2744]/75 to-[#0F2744]/25"></div>
+        <div className="absolute -left-24 top-24 h-72 w-72 rounded-full bg-[#1073E6]/30 blur-3xl"></div>
+        <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-[#16A34A]/25 blur-3xl"></div>
       </div>
 
       {/* Content */}
       <div className="w-full max-w-325 mx-auto relative z-10 pt-32 pb-20 px-4 ">
         <div>
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#0f2744] dark:text-white mb-6 leading-[1.1] animate-fade-in-up" style={{ fontFamily: 'DM Serif Display, serif' }}>
+          <div className="mb-8 inline-flex items-center gap-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 shadow-2xl backdrop-blur-md animate-fade-in-up">
+            <Image
+              src="/Images/brand/cleango-app-icon.png"
+              alt="CleanGo CM"
+              width={58}
+              height={58}
+              className="h-14 w-14 rounded-xl object-cover shadow-lg ring-2 ring-white/20"
+              priority
+            />
+            <div>
+              <p className="text-2xl font-black leading-none tracking-tight text-white sm:text-3xl">
+                CleanGo <span className="text-[#16A34A]">CM</span>
+              </p>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Collecte propre, avenir propre</p>
+            </div>
+          </div>
+
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-[1.1] animate-fade-in-up" style={{ fontFamily: 'DM Serif Display, serif' }}>
             {t('heroTitle1')}
             <br />
             {t('heroTitle2')}
           </h1>
           
-          <p className="text-[#4a5568] dark:text-gray-300 text-lg md:text-xl mb-10 animate-fade-in-up animation-delay-200 max-w-2xl">
+          <p className="text-white/85 text-lg md:text-xl mb-10 animate-fade-in-up animation-delay-200 max-w-2xl">
             {t('heroSubtitle')}
           </p>
 
           {/* Location Dropdown & Button */}
-          <div className="bg-white dark:bg-[#0f2744] p-4 rounded-lg shadow-md border-2 border-gray-200 dark:border-[#2a4f75] max-w-3xl animate-fade-in-up animation-delay-300">
+          <div className="bg-white/95 dark:bg-[#0f2744]/95 p-4 rounded-2xl shadow-2xl border border-white/30 dark:border-[#2a4f75] max-w-3xl animate-fade-in-up animation-delay-300 backdrop-blur">
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Store Dropdown */}
               <div className="relative flex-1" ref={dropdownRef}>
@@ -193,10 +208,10 @@ const Hero = () => {
                     )}
                     <span className={selectedStore ? 'text-gray-900 dark:text-white' : 'text-gray-400'}>
                       {isDetecting 
-                        ? 'Detecting your location...' 
+                        ? 'Detection de votre position...' 
                         : selectedStore 
-                          ? `${selectedStore.name}${userLocation?.isDefault ? ' (Default Area)' : ''}` 
-                          : t('selectLocation') || 'Select a store location'}
+                          ? `${selectedStore.name}${userLocation?.isDefault ? ' (zone par defaut)' : ''}` 
+                          : t('selectLocation') || 'Selectionnez votre quartier'}
                     </span>
                   </div>
                   <IoChevronDown className={`w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -211,7 +226,7 @@ const Hero = () => {
                         <div className="flex items-center justify-between gap-2 min-w-0">
                           <p className={`text-sm flex items-center gap-2 min-w-0 ${userLocation.isDefault ? 'text-amber-600' : 'text-[#00BFA6]'}`}>
                             <FiMapPin className="w-4 h-4 shrink-0" />
-                            <span className="truncate">{userLocation.isDefault ? 'Please allow location access' : (userLocation.address || 'Your Location')}</span>
+                            <span className="truncate">{userLocation.isDefault ? 'Autorisez la localisation' : (userLocation.address || 'Votre position')}</span>
                           </p>
                           {userLocation.isDefault && (
                             <button
@@ -220,12 +235,12 @@ const Hero = () => {
                               className="text-xs bg-[#00BFA6] text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-[#009680] transition-colors disabled:opacity-50"
                             >
                               <FiNavigation className="w-3 h-3" />
-                              {isDetecting ? 'Detecting...' : 'Allow Location'}
+                              {isDetecting ? 'Detection...' : 'Autoriser'}
                             </button>
                           )}
                         </div>
                         {userLocation.isDefault && (
-                          <p className="text-xs text-amber-500 mt-1">Enable location for nearby stores</p>
+                          <p className="text-xs text-amber-500 mt-1">Activez la localisation pour verifier la couverture</p>
                         )}
                       </div>
                     )}

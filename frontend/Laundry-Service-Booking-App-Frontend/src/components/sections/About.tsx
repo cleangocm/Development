@@ -8,15 +8,15 @@ const About = () => {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section id="about" className="py-20 md:py-28 bg-white dark:bg-gray-900">
+    <section id="about" className="py-20 md:py-28 bg-[#F1F5F9] dark:bg-gray-900">
       <div className="container-custom" ref={ref}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Image Side */}
           <div className={`relative ${isVisible ? 'animate-fade-in-left' : 'opacity-0'}`}>
             <div className="relative rounded-2xl overflow-hidden">
               <Image
-                src="/Images/Home/about-section.png"
-                alt="Professional Laundry Team"
+                src="/Images/brand/cleango-official.png"
+                alt="CleanGo collecte dechets"
                 width={700}
                 height={550}
                 className="w-full h-auto object-cover rounded-2xl"
@@ -26,18 +26,18 @@ const About = () => {
 
           {/* Content Side */}
           <div className={`${isVisible ? 'animate-fade-in-right' : 'opacity-0'}`}>
-            <p className="text-[#00BFA6] font-semibold mb-4 text-sm tracking-wide">About Us</p>
+            <p className="text-[#00BFA6] font-semibold mb-4 text-sm tracking-wide">A propos</p>
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-[#0f2744] dark:text-white mb-6 leading-tight">
-              Premium Laundry Care You Can Trust
+              Une collecte propre que vous pouvez suivre
             </h2>
             <p className="text-[#5a6a7a] dark:text-gray-400 mb-4 leading-relaxed text-base">
-              We provide professional laundry and dry cleaning services with a commitment
-              to quality and care. Every garment is treated with expert attention to detail.
+              CleanGo aide les foyers et entreprises a organiser leurs collectes de dechets
+              avec des plans simples, des rappels et un suivi clair depuis le tableau de bord.
             </p>
             <p className="text-[#5a6a7a] dark:text-gray-400 mb-8 leading-relaxed text-base">
-              From everyday clothes to delicate fabrics and formal wear, our trained team
-              uses eco-friendly detergents and modern techniques to deliver spotless results
-              every time.
+              Notre objectif est de rendre chaque quartier plus propre grace a des ramassages
+              fiables, des collecteurs identifies et des paiements faciles par mobile money,
+              virement ou cash.
             </p>
 
             {/* Features Box */}
@@ -48,9 +48,9 @@ const About = () => {
                     <MdVerifiedUser className="w-5 h-5 text-[#14b8a6]" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-[#0f2744] dark:text-white mb-1">Experienced & Trained</h4>
+                    <h4 className="font-bold text-[#0f2744] dark:text-white mb-1">Collecteurs verifies</h4>
                     <p className="text-[#5a6a7a] dark:text-gray-400 text-sm leading-relaxed">
-                      Our verified experts guarantee top-tier service and total peace of mind.
+                      Les missions sont attribuees et suivies pour plus de transparence.
                     </p>
                   </div>
                 </div>
@@ -59,9 +59,9 @@ const About = () => {
                     <MdCheckCircle className="w-5 h-5 text-[#14b8a6]" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-[#0f2744] dark:text-white mb-1">Eco-Friendly & Safe</h4>
+                    <h4 className="font-bold text-[#0f2744] dark:text-white mb-1">Quartiers plus propres</h4>
                     <p className="text-[#5a6a7a] dark:text-gray-400 text-sm leading-relaxed">
-                      Purely plant-based and biodegradable solutions for a healthier home and a safer world.
+                      Des collectes regulieres pour reduire les depots sauvages.
                     </p>
                   </div>
                 </div>

@@ -27,7 +27,7 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
     { icon: FiUsers, label: 'Users', href: '/admin/users' },
     { icon: FiPackage, label: 'Services', href: '/admin/services' },
     { icon: FiMapPin, label: 'Stores', href: '/admin/stores' },
-    { icon: FiTruck, label: 'Delivery', href: '/admin/delivery' },
+    { icon: FiTruck, label: 'Dispatch', href: '/admin/delivery' },
     { icon: FiDollarSign, label: 'Payments', href: '/admin/payments' },
     { icon: FiTag, label: 'Coupons', href: '/admin/coupons' },
     { icon: FiBarChart2, label: 'Reports', href: '/admin/reports' },
@@ -56,11 +56,11 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
         {/* Logo */}
         <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-white/10">
           <Link href="/admin" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-linear-to-br from-[#00BFA6] to-[#00A892] rounded-xl flex items-center justify-center shadow-lg shadow-[#00BFA6]/30 p-1.5">
-              <Image src="/Images/logo/footer.png" alt="Ultra Wash" width={28} height={28} className="object-contain brightness-0 invert" />
+            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shadow-lg shadow-[#00BFA6]/20 p-1">
+              <Image src="/Images/brand/cleango-app-icon.png" alt="CleanGo CM" width={32} height={32} className="rounded-lg object-cover" />
             </div>
             <div>
-              <h1 className="font-bold text-[15px] leading-tight tracking-tight">Ultra Wash</h1>
+              <h1 className="font-bold text-[15px] leading-tight tracking-tight">CleanGo CM</h1>
               <p className="text-[10px] text-[#00BFA6] font-semibold uppercase tracking-widest">Admin Panel</p>
             </div>
           </Link>

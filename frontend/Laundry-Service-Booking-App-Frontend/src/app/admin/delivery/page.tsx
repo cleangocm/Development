@@ -570,4 +570,4 @@ const AdminDeliveryPage = () => {
   );
 };
 
-export default AdminDeliveryPage;
+export { default } from '@/components/admin/DispatchDashboard';

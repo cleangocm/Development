@@ -434,7 +434,7 @@ export const useStoreStore = create<StoreState>((set, get) => ({
       try {
         const nomRes = await fetch(
           `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en', 'User-Agent': 'UltraWash-App/1.0' } }
+          { headers: { 'Accept-Language': 'fr', 'User-Agent': 'CleanGo-App/1.0' } }
         );
         const nomData = await nomRes.json();
         const addr = nomData.address || {};

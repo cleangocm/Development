@@ -3,10 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import api from '@/services/api';
 import { FiX, FiDownload, FiRefreshCw, FiLoader } from 'react-icons/fi';
 import { useTheme } from '@/context/ThemeContext';
 import { generateInvoicePDF } from '@/services/invoicePdf';
+import { useAuthStore } from '@/store/authStore';
+import { listCustomerPickups } from '@/services/cleangoRepository';
+import { cancelPickup } from '@/services/cleangoFunctions';
+import type { Pickup } from '@/types/cleango';
 
 // Order types
 type OrderFilter = 'all' | 'completed' | 'ongoing' | 'cancelled';
@@ -26,8 +29,32 @@ interface Order {
   status: string;
 }
 
+function toIsoDate(value: Pickup['scheduledDate'] | Pickup['updatedAt']): string {
+  if (!value) return new Date().toISOString();
+  if (typeof value === 'string') return value;
+  return value.toDate().toISOString();
+}
+
+function pickupToOrder(pickup: Pickup): Order {
+  return {
+    _id: pickup.id,
+    orderId: pickup.id,
+    itemsSummary: pickup.notes || 'CleanGo waste collection pickup',
+    itemCount: 1,
+    orderDate: toIsoDate(pickup.scheduledDate),
+    deliveryDate: toIsoDate(pickup.updatedAt || pickup.scheduledDate),
+    subtotal: 0,
+    deliveryCharge: 0,
+    deliverySpeedCharge: 0,
+    discount: 0,
+    totalPayment: 0,
+    status: pickup.status,
+  };
+}
+
 const OrdersPage = () => {
   const { formatPrice } = useTheme();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<OrderFilter>('all');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,33 +72,41 @@ const OrdersPage = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get('/orders/my-orders', { params: { status: activeTab } });
-      if (res.data.status === 'success') {
-        setOrders(res.data.data);
-        setError('');
+      if (!user) {
+        setOrders([]);
+        return;
       }
+      const pickups = await listCustomerPickups(user.id);
+      const filtered = pickups.filter((pickup) => {
+        if (activeTab === 'all') return true;
+        if (activeTab === 'completed') return pickup.status === 'completed';
+        if (activeTab === 'cancelled') return pickup.status === 'cancelled';
+        return !['completed', 'cancelled'].includes(pickup.status);
+      });
+      setOrders(filtered.map(pickupToOrder));
+      setError('');
     } catch {
       setError('Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, user]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
   const getStatusColor = (status: string) => {
-    if (['confirmed', 'picked_up', 'in_process', 'ready', 'out_for_delivery'].includes(status))
+    if (['assigned', 'en_route', 'arrived', 'rescheduled'].includes(status))
       return 'bg-[#00BFA6] text-white';
-    if (status === 'delivered') return 'bg-green-500 text-white';
+    if (status === 'completed') return 'bg-green-500 text-white';
     if (status === 'cancelled') return 'bg-red-500 text-white';
     return 'bg-gray-500 text-white';
   };
 
   const formatStatus = (status: string) => status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  const isOngoing = (status: string) => !['delivered', 'cancelled'].includes(status);
+  const isOngoing = (status: string) => !['completed', 'cancelled'].includes(status);
 
   const handleCancelOrder = (orderId: string) => {
     setSelectedOrderId(orderId);
@@ -81,7 +116,7 @@ const OrdersPage = () => {
   const confirmCancelOrder = async () => {
     if (selectedOrderId) {
       try {
-        await api.put(`/orders/${selectedOrderId}/cancel`);
+        await cancelPickup(selectedOrderId);
         fetchOrders();
       } catch {
         setError('Failed to cancel order. Please try again.');
@@ -96,7 +131,7 @@ const OrdersPage = () => {
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700">
-          <h1 className="text-lg font-semibold text-[#0F2744] dark:text-white border-b-2 border-[#00BFA6] pb-2 inline-block">My Orders</h1>
+          <h1 className="text-lg font-semibold text-[#0F2744] dark:text-white border-b-2 border-[#00BFA6] pb-2 inline-block">My Pickups</h1>
         </div>
 
         {/* Tabs */}
@@ -135,8 +170,8 @@ const OrdersPage = () => {
               <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
                 <FiX className="w-10 h-10 text-gray-400 dark:text-gray-500" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No orders found</h3>
-              <p className="text-gray-500 dark:text-gray-400">You don&apos;t have any {activeTab !== 'all' ? activeTab : ''} orders yet.</p>
+              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No pickups found</h3>
+              <p className="text-gray-500 dark:text-gray-400">You don&apos;t have any {activeTab !== 'all' ? activeTab : ''} pickups yet.</p>
             </div>
           ) : (
             orders.map((order, index) => (
@@ -151,22 +186,22 @@ const OrdersPage = () => {
                     {formatStatus(order.status)}
                   </span>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
-                    Order ID: <span className="font-semibold text-[#0F2744] dark:text-white">{order.orderId}</span>
+                    Pickup ID: <span className="font-semibold text-[#0F2744] dark:text-white">{order.orderId}</span>
                   </span>
                 </div>
 
                 {/* Order Details */}
                 <h3 className="text-base sm:text-lg font-bold text-[#0F2744] dark:text-white mb-4">
-                  {order.itemCount} items have been ordered : {order.itemsSummary}
+                  {order.itemsSummary}
                 </h3>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
                   <div>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Order Date</p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Scheduled Date</p>
                     <p className="text-sm sm:text-base font-semibold text-[#0F2744] dark:text-white">{formatDate(order.orderDate)}</p>
                   </div>
                   <div className="text-right lg:text-left">
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Approximate Delivery Date</p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Updated Date</p>
                     <p className="text-sm sm:text-base font-semibold text-[#0F2744] dark:text-white">{formatDate(order.deliveryDate)}</p>
                   </div>
                   <div>
@@ -199,14 +234,11 @@ const OrdersPage = () => {
                       Cancel
                     </button>
                   )}
-                  {order.status === 'delivered' && (
+                  {order.status === 'completed' && (
                     <>
                       <button
                         onClick={async () => {
-                          try {
-                            const res = await api.get(`/orders/${order._id}`);
-                            if (res.data.status === 'success') generateInvoicePDF(res.data.data, formatPrice);
-                          } catch { generateInvoicePDF(order as unknown as Parameters<typeof generateInvoicePDF>[0], formatPrice); }
+                          generateInvoicePDF(order as unknown as Parameters<typeof generateInvoicePDF>[0], formatPrice);
                         }}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg font-medium hover:border-[#00BFA6] hover:text-[#00BFA6] transition-colors text-sm"
                       >
@@ -214,11 +246,11 @@ const OrdersPage = () => {
                         Invoice
                       </button>
                       <Link
-                        href="/services"
+                        href="/dashboard/book-pickup"
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 border-2 border-[#00BFA6] text-[#00BFA6] rounded-lg font-medium hover:bg-[#00BFA6] hover:text-white transition-colors text-sm"
                       >
                         <FiRefreshCw className="w-4 h-4" />
-                        Re-order
+                        Schedule again
                       </Link>
                     </>
                   )}
@@ -226,7 +258,7 @@ const OrdersPage = () => {
                     href={`/dashboard/orders/${order._id}`}
                     className="flex-1 sm:flex-none px-5 py-2.5 bg-[#0F2744] dark:bg-[#00BFA6] text-white rounded-lg font-medium hover:bg-[#1a3a5c] dark:hover:bg-[#00A892] transition-colors text-center text-sm"
                   >
-                    Track Order
+                    Track Pickup
                   </Link>
                 </div>
               </div>

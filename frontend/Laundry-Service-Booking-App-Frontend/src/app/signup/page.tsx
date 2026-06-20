@@ -188,8 +188,8 @@ const SignupPage = () => {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-br from-[#0f2744]/20 to-transparent z-10" />
         <Image
-          src="/Images/Home/service-section/img-2.png"
-          alt="Laundry Service"
+          src="/Images/brand/cleango-hero-card.png"
+          alt="CleanGo service"
           fill
           sizes="50vw"
           className="object-cover animate-scale-in"
@@ -204,20 +204,20 @@ const SignupPage = () => {
           <div className="flex justify-center mb-5 sm:mb-6">
             <Image
               src="/Images/logo/header.png"
-              alt="Ultra Wash Logo"
-              width={120}
-              height={50}
-              className="w-24 sm:w-28 md:w-32 h-auto dark:brightness-0 dark:invert"
+              alt="CleanGo Logo"
+              width={220}
+              height={70}
+              className="w-40 sm:w-48 md:w-52 h-auto"
             />
           </div>
 
           {/* Header */}
           <div className="text-center mb-5 sm:mb-6">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#0f2744] dark:text-white mb-2">
-              Create Your Account
+              Creer votre compte
             </h1>
             <p className="text-sm sm:text-base text-[#5a6a7a] dark:text-gray-400">
-              Please Register to get our Service
+              Inscrivez-vous pour planifier vos collectes CleanGo
             </p>
           </div>
 

@@ -3,22 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiBell, FiX, FiCheck, FiCheckCircle, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import api from '@/services/api';
-
-interface Notification {
-  _id: string;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  orderId?: string;
-  createdAt: string;
-}
+import {
+  listUserNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '@/services/cleangoRepository';
+import { useAuthStore } from '@/store/authStore';
+import type { CleanGoNotification } from '@/types/cleango';
 
 const NotificationsPage = () => {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const { user } = useAuthStore();
+  const [notifications, setNotifications] = useState<CleanGoNotification[]>([]);
+  const [selectedNotification, setSelectedNotification] = useState<CleanGoNotification | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -28,43 +25,51 @@ const NotificationsPage = () => {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/notifications?page=${page}&limit=20`);
-      if (res.data?.status === 'success') {
-        setNotifications(res.data.data.notifications || []);
-        setUnreadCount(res.data.data.unreadCount || 0);
-        setTotal(res.data.data.total || 0);
-        setTotalPages(res.data.data.totalPages || 1);
+      if (!user) {
+        setNotifications([]);
+        setUnreadCount(0);
+        setTotal(0);
+        setTotalPages(1);
+        return;
       }
+      const allNotifications = await listUserNotifications(user.id, 100);
+      const start = (page - 1) * 20;
+      const currentPage = allNotifications.slice(start, start + 20);
+      setNotifications(currentPage);
+      setUnreadCount(allNotifications.filter((notification) => !notification.read).length);
+      setTotal(allNotifications.length);
+      setTotalPages(Math.max(1, Math.ceil(allNotifications.length / 20)));
     } catch {
       setNotifications([]);
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, user]);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
   const markAsRead = async (id: string) => {
     try {
-      await api.put(`/notifications/${id}/read`);
+      await markNotificationRead(id);
       fetchNotifications();
     } catch { /* ignore */ }
   };
 
   const markAllRead = async () => {
     try {
-      await api.put('/notifications/all/read');
+      if (!user) return;
+      await markAllNotificationsRead(user.id);
       fetchNotifications();
     } catch { /* ignore */ }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: CleanGoNotification) => {
     // Mark as read if unread
-    if (!notification.isRead) markAsRead(notification._id);
+    if (!notification.read) markAsRead(notification.id);
     
     // Navigate to order details if orderId exists (for order-related notifications)
-    if (notification.orderId) {
-      router.push(`/dashboard/orders/${notification.orderId}`);
+    if (notification.pickupId) {
+      router.push(`/dashboard/orders/${notification.pickupId}`);
     } else {
       // Otherwise, show detail modal
       setSelectedNotification(notification);
@@ -73,9 +78,14 @@ const NotificationsPage = () => {
 
   const closeDetail = () => setSelectedNotification(null);
 
-  const timeAgo = (dateStr: string) => {
+  const notificationDate = (notification: CleanGoNotification) => {
+    const value = notification.createdAt;
+    return value?.toDate?.() || new Date();
+  };
+
+  const timeAgo = (notification: CleanGoNotification) => {
     const now = new Date();
-    const date = new Date(dateStr);
+    const date = notificationDate(notification);
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
@@ -83,8 +93,8 @@ const NotificationsPage = () => {
     return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
-  const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (notification: CleanGoNotification) => notificationDate(notification).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+  const formatTime = (notification: CleanGoNotification) => notificationDate(notification).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <>
@@ -127,29 +137,29 @@ const NotificationsPage = () => {
                   ) : (
                     notifications.map((notification) => (
                       <button
-                        key={notification._id}
+                        key={notification.id}
                         onClick={() => handleNotificationClick(notification)}
                         className={`w-full p-4 sm:p-6 text-start hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                          !notification.isRead ? 'bg-[#00BFA6]/5' : ''
-                        } ${selectedNotification?._id === notification._id ? 'ring-2 ring-inset ring-[#00BFA6]/30' : ''}`}
+                          !notification.read ? 'bg-[#00BFA6]/5' : ''
+                        } ${selectedNotification?.id === notification.id ? 'ring-2 ring-inset ring-[#00BFA6]/30' : ''}`}
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`p-2 rounded-full shrink-0 ${!notification.isRead ? 'bg-[#00BFA6]/10' : 'bg-gray-100 dark:bg-gray-700'}`}>
-                            <FiBell className={`w-5 h-5 ${!notification.isRead ? 'text-[#00BFA6]' : 'text-gray-400'}`} />
+                          <div className={`p-2 rounded-full shrink-0 ${!notification.read ? 'bg-[#00BFA6]/10' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                            <FiBell className={`w-5 h-5 ${!notification.read ? 'text-[#00BFA6]' : 'text-gray-400'}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs text-gray-400 dark:text-gray-500">{timeAgo(notification.createdAt)}</span>
-                              {!notification.isRead && <span className="w-2 h-2 bg-[#00BFA6] rounded-full" />}
+                              <span className="text-xs text-gray-400 dark:text-gray-500">{timeAgo(notification)}</span>
+                              {!notification.read && <span className="w-2 h-2 bg-[#00BFA6] rounded-full" />}
                             </div>
-                            <h3 className={`font-semibold mb-1 ${!notification.isRead ? 'text-[#00BFA6]' : 'text-gray-700 dark:text-gray-300'}`}>
+                            <h3 className={`font-semibold mb-1 ${!notification.read ? 'text-[#00BFA6]' : 'text-gray-700 dark:text-gray-300'}`}>
                               {notification.title}
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{notification.message}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{notification.body}</p>
                           </div>
-                          {!notification.isRead && (
+                          {!notification.read && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); markAsRead(notification._id); }}
+                              onClick={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
                               className="p-1.5 text-gray-400 hover:text-[#00BFA6] shrink-0"
                               title="Mark as read"
                             >
@@ -195,11 +205,11 @@ const NotificationsPage = () => {
                         <FiBell className="w-8 h-8 text-gray-400" />
                       </div>
                       <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                        {formatTime(selectedNotification.createdAt)}, {formatDate(selectedNotification.createdAt)}
+                        {formatTime(selectedNotification)}, {formatDate(selectedNotification)}
                       </p>
                       <span className="inline-block px-2 py-0.5 text-xs bg-[#00BFA6]/10 text-[#00BFA6] rounded-full mb-3 capitalize">{selectedNotification.type}</span>
                       <h3 className="font-semibold text-gray-800 dark:text-white mb-3">{selectedNotification.title}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{selectedNotification.message}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{selectedNotification.body}</p>
                     </div>
                   </div>
                 ) : (
@@ -228,11 +238,11 @@ const NotificationsPage = () => {
                   <FiBell className="w-8 h-8 text-gray-400" />
                 </div>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                  {formatTime(selectedNotification.createdAt)}, {formatDate(selectedNotification.createdAt)}
+                  {formatTime(selectedNotification)}, {formatDate(selectedNotification)}
                 </p>
                 <span className="inline-block px-2 py-0.5 text-xs bg-[#00BFA6]/10 text-[#00BFA6] rounded-full mb-3 capitalize">{selectedNotification.type}</span>
                 <h3 className="font-semibold text-gray-800 dark:text-white mb-3">{selectedNotification.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedNotification.message}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedNotification.body}</p>
               </div>
             </div>
           </div>

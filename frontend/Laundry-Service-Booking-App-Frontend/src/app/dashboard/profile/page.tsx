@@ -6,9 +6,9 @@ import SafeImage from '@/components/ui/SafeImage';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { FiCamera, FiUser, FiMail, FiPhone, FiEdit3, FiSave, FiX, FiCheck, FiLoader } from 'react-icons/fi';
 import { useAuthStore } from '@/store/authStore';
-import api from '@/services/api';
 import { uploadImage, validateImageFile } from '@/services/imageUpload';
 import { filterNameInput, filterPhoneInput, filterSafeText } from '@/lib/inputValidation';
+import { getUser, updateCustomerProfile } from '@/services/cleangoRepository';
 
 interface UserProfile {
   name: string;
@@ -19,7 +19,7 @@ interface UserProfile {
 }
 
 const ProfilePage = () => {
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -45,33 +45,19 @@ const ProfilePage = () => {
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
-  // Fetch profile from backend API
+  // Fetch profile from Firestore.
   useEffect(() => {
     const fetchProfile = async () => {
       setIsFetching(true);
       try {
-        if (token) {
-          const response = await api.get('/auth/profile');
-          if (response.data.status === 'success') {
-            const userData = response.data.data;
-            const profileData: UserProfile = {
-              name: userData.name || '',
-              email: userData.email || '',
-              phone: userData.phone || '',
-              address: userData.address || '',
-              profileImage: userData.profileImage || '',
-            };
-            setProfile(profileData);
-            setEditProfile(profileData);
-          }
-        } else if (user) {
-          // Fallback to local store data
+        if (user) {
+          const remoteUser = await getUser(user.id);
           const profileData: UserProfile = {
-            name: user.name || '',
-            email: user.email || '',
-            phone: user.phone || '',
-            address: user.address || '',
-            profileImage: '',
+            name: remoteUser?.name || user.name || '',
+            email: remoteUser?.email || user.email || '',
+            phone: remoteUser?.phone || user.phone || '',
+            address: remoteUser?.address || user.address || '',
+            profileImage: remoteUser?.profileImage || user.profileImage || '',
           };
           setProfile(profileData);
           setEditProfile(profileData);
@@ -84,7 +70,7 @@ const ProfilePage = () => {
             email: user.email || '',
             phone: user.phone || '',
             address: user.address || '',
-            profileImage: '',
+            profileImage: user.profileImage || '',
           };
           setProfile(profileData);
           setEditProfile(profileData);
@@ -94,7 +80,7 @@ const ProfilePage = () => {
       }
     };
     fetchProfile();
-  }, [token, user]);
+  }, [user]);
 
   const handleEditChange = (field: keyof UserProfile, value: string) => {
     setEditProfile(prev => ({ ...prev, [field]: value }));
@@ -165,24 +151,14 @@ const ProfilePage = () => {
     setMessage('');
     
     try {
-      // Send profileImage URL along with name, phone, and address
-      const response = await api.put('/auth/profile', {
+      if (!user) throw new Error('You must be signed in to update your profile.');
+      await updateCustomerProfile(user.id, {
         name: editProfile.name,
         phone: editProfile.phone,
         address: editProfile.address,
-        profileImage: editProfile.profileImage, // Include the ImgBB URL
+        profileImage: editProfile.profileImage,
       });
-
-
-      if (response.data.status === 'success') {
-        const updatedData = response.data.data;
-        const updatedProfile: UserProfile = {
-          name: updatedData.name || editProfile.name,
-          email: updatedData.email || editProfile.email,
-          phone: updatedData.phone || editProfile.phone,
-          address: updatedData.address || editProfile.address,
-          profileImage: updatedData.profileImage || editProfile.profileImage,
-        };
+      const updatedProfile: UserProfile = { ...editProfile, email: profile.email };
         setProfile(updatedProfile);
         setEditProfile(updatedProfile);
 
@@ -203,10 +179,8 @@ const ProfilePage = () => {
         setMessage('Profile updated successfully!');
         setMessageType('success');
         setIsEditing(false);
-      }
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } }; message?: string };
-      const errMsg = err?.response?.data?.message || 'Failed to update profile. Please try again.';
+      const errMsg = error instanceof Error ? error.message : 'Failed to update profile. Please try again.';
       setMessage(errMsg);
       setMessageType('error');
     } finally {

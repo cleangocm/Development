@@ -90,9 +90,9 @@ interface Settings {
 }
 
 const defaultSettings: Settings = {
-  siteName: 'Ultra Wash',
-  tagline: 'Premium Laundry & Dry Cleaning',
-  email: 'support@ultrawash.com',
+  siteName: 'CleanGo',
+  tagline: 'Collecte propre, avenir propre',
+  email: 'support@cleangocm.com',
   phone: '+1 234 567 8900',
   address: '123 Main Street, New York, NY 10001',
   currency: 'USD',
@@ -118,8 +118,8 @@ const defaultSettings: Settings = {
   maintenanceMode: false,
   // Footer
   footerLogo: '',
-  footerDescription: 'Your clothes deserve the best—trust Ultra Wash for professional care, eco-friendly solutions, and a spotless finish.',
-  copyrightText: '© {year} Ultra Wash. All Rights Reserved.',
+  footerDescription: 'CleanGo organise la collecte intelligente des dechets pour les foyers et entreprises.',
+  copyrightText: '© {year} CleanGo. Tous droits reserves.',
   socialMediaLinks: [],
   appDownloadLinks: [],
   headerLogo: '',
@@ -856,7 +856,7 @@ const AdminSettingsPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Address</label>
-                    <input type="email" value={smtpConfig.from} onChange={(e) => setSmtpConfig({ ...smtpConfig, from: filterSafeText(e.target.value) })} placeholder="noreply@ultrawash.com" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
+                    <input type="email" value={smtpConfig.from} onChange={(e) => setSmtpConfig({ ...smtpConfig, from: filterSafeText(e.target.value) })} placeholder="noreply@cleangocm.com" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                     <p className="text-[11px] text-gray-400 mt-1">This address appears in the &ldquo;From&rdquo; field of all outgoing emails.</p>
                   </div>
                 </div>
@@ -1012,7 +1012,7 @@ const AdminSettingsPage = () => {
                       value={settings.copyrightText}
                       onChange={(e) => setSettings({...settings, copyrightText: filterSafeText(e.target.value)})}
                       className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                      placeholder="Use {year} for dynamic year. e.g. © {year} Ultra Wash"
+                      placeholder="Use {year} for dynamic year. e.g. © {year} CleanGo"
                     />
                     <p className="text-[11px] text-gray-400 mt-1">Use <code className="bg-gray-100 dark:bg-gray-600 px-1 rounded">{'{year}'}</code> to auto-insert current year</p>
                   </div>

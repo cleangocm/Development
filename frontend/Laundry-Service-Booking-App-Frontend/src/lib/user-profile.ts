@@ -1,6 +1,5 @@
 import { User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { createCustomerAccount, getUser } from '@/services/cleangoRepository';
 
 export type UserRole = 'customer' | 'collector' | 'admin' | 'staff' | 'delivery';
 
@@ -19,8 +18,6 @@ interface CreateCustomerProfileInput {
   phone?: string;
 }
 
-const usersCollection = 'users';
-
 export async function createCustomerProfile(
   firebaseUser: FirebaseUser,
   input: CreateCustomerProfileInput,
@@ -34,29 +31,30 @@ export async function createCustomerProfile(
     profileImage: firebaseUser.photoURL,
   };
 
-  await setDoc(doc(db, usersCollection, firebaseUser.uid), {
-    ...profile,
+  await createCustomerAccount({
     uid: firebaseUser.uid,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    name: profile.name,
+    email: profile.email,
+    phone: profile.phone || '',
+    role: 'customer',
+    active: true,
+    profileImage: profile.profileImage,
   });
 
   return profile;
 }
 
 export async function getUserProfile(firebaseUser: FirebaseUser): Promise<AppUser> {
-  const profileRef = doc(db, usersCollection, firebaseUser.uid);
-  const snapshot = await getDoc(profileRef);
+  const data = await getUser(firebaseUser.uid);
 
-  if (!snapshot.exists()) {
+  if (!data) {
     return createCustomerProfile(firebaseUser, {
       name: firebaseUser.displayName || 'Customer',
       phone: firebaseUser.phoneNumber || undefined,
     });
   }
 
-  const data = snapshot.data();
-  const role: UserRole = ['customer', 'collector', 'admin', 'staff', 'delivery'].includes(data.role)
+  const role: UserRole = ['customer', 'collector', 'admin'].includes(data.role)
     ? data.role
     : 'customer';
 

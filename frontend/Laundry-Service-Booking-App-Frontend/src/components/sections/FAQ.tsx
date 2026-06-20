@@ -7,28 +7,28 @@ import { IoChevronDown } from 'react-icons/io5';
 const faqs = [
   {
     id: 1,
-    question: 'What services do you offer?',
-    answer: 'We offer wash & fold, wash & iron, dry cleaning, ironing/pressing, premium delicate wash, bedding & linen cleaning, stain removal, and shoe cleaning. Our expert team handles everything from everyday clothes to delicate fabrics and formal wear.',
+    question: 'Quels services CleanGo propose-t-il ?',
+    answer: 'CleanGo propose des abonnements mensuels de collecte de dechets, des collectes ponctuelles et des solutions pour entreprises, immeubles, hotels et restaurants.',
   },
   {
     id: 2,
-    question: 'How does pickup and delivery work?',
-    answer: 'Schedule a pickup through our app or website. Our driver will arrive at your location, collect your laundry, and deliver it back fresh and clean within 2-3 days. We offer flexible time slots to fit your schedule.',
+    question: 'Comment fonctionne la collecte ?',
+    answer: 'Choisissez un plan, indiquez votre quartier et votre adresse, puis selectionnez vos jours de collecte. CleanGo confirme la demande et attribue un collecteur.',
   },
   {
     id: 3,
-    question: 'What are your turnaround times?',
-    answer: 'Standard service is 2-3 days. Ironing/pressing can be done in 1 day. Dry cleaning and specialty services take about 3 days. Express same-day service is available for select services.',
+    question: 'Puis-je demander une collecte ponctuelle ?',
+    answer: 'Oui. Les collectes ponctuelles sont disponibles en format Small, Medium et Large avec planification flexible et paiement en ligne ou manuel.',
   },
   {
     id: 4,
-    question: 'How do you handle delicate items?',
-    answer: 'Delicate items like silk sarees, Jamdani, cashmere, and designer wear receive special care. We use organic detergents, hand wash when needed, and follow care label instructions carefully.',
+    question: 'Quels moyens de paiement sont acceptes ?',
+    answer: 'CleanGo accepte MTN Cameroon Mobile Money, Orange Cameroon Money, virement bancaire et cash a la collecte.',
   },
   {
     id: 5,
-    question: 'What is your pricing?',
-    answer: 'Our pricing is transparent and affordable. Wash & fold starts from $3/item, ironing from $2/item, and dry cleaning from $18/item. Prices are automatically converted to your local currency. We also offer discount coupons for regular customers.',
+    question: 'Que faire si une collecte est manquee ?',
+    answer: 'Ouvrez le support depuis votre tableau de bord pour signaler la collecte manquee. CleanGo pourra replanifier ou verifier l assignation du collecteur.',
   },
 ];
 
@@ -41,16 +41,16 @@ const FAQ = () => {
   };
 
   return (
-    <section id="faq" className="py-20 md:py-28 bg-white dark:bg-gray-900">
+    <section id="faq" className="py-20 md:py-28 bg-linear-to-b from-[#F1F5F9] to-white dark:from-gray-900 dark:to-gray-950">
       <div className="container-custom" ref={ref}>
         {/* Section Header */}
         <div className={`text-center mb-14 md:mb-16 ${isVisible ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <p className="text-[#00BFA6] font-semibold mb-3 text-sm">FAQ</p>
           <h2 className="text-3xl md:text-4xl lg:text-[42px] font-bold text-[#0f2744] dark:text-white mb-4">
-            Frequently Asked Questions
+            Questions frequentes
           </h2>
           <p className="text-[#5a6a7a] dark:text-gray-400 max-w-2xl mx-auto text-base leading-relaxed">
-            Find answers to common questions about our laundry services
+            Trouvez les reponses aux questions courantes sur les collectes CleanGo
           </p>
         </div>
 

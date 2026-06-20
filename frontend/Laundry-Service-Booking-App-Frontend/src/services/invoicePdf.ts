@@ -57,7 +57,7 @@ export const generateInvoicePDF = (order: InvoiceOrder, formatPriceFn?: (amount:
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('Laundry Service', 14, 20);
+  doc.text('CleanGo Waste Collection', 14, 20);
 
   // Invoice label
   doc.setFontSize(12);
@@ -211,7 +211,7 @@ export const generateInvoicePDF = (order: InvoiceOrder, formatPriceFn?: (amount:
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
-  doc.text('Thank you for using our laundry service!', pageWidth / 2, footerY, { align: 'center' });
+  doc.text('Merci d utiliser CleanGo pour vos collectes.', pageWidth / 2, footerY, { align: 'center' });
   doc.text(`Generated on ${new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageWidth / 2, footerY + 5, { align: 'center' });
 
   // Save

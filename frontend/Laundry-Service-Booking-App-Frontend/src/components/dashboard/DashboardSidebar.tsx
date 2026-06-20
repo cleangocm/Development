@@ -6,11 +6,11 @@ import SafeImage from '@/components/ui/SafeImage';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuthStore } from '@/store/authStore';
-import api from '@/services/api';
+import { countUnreadNotifications } from '@/services/cleangoRepository';
 import { 
   FiUser, FiPackage, FiMessageSquare, FiSettings, FiLogOut, 
   FiChevronDown, FiChevronUp, FiLock, FiBell, FiGlobe, FiMoon,
-  FiHome, FiStar, FiTag
+  FiHome, FiStar, FiTag, FiCalendar, FiCreditCard, FiMapPin
 } from 'react-icons/fi';
 
 interface DashboardSidebarProps {
@@ -28,25 +28,26 @@ const DashboardSidebar = ({ className = '', onClose }: DashboardSidebarProps) =>
   useEffect(() => {
     const fetchUnread = async () => {
       try {
-        const res = await api.get('/notifications?limit=1');
-        if (res.data?.status === 'success') {
-          setUnreadNotifs(res.data.data?.unreadCount ?? 0);
-        }
+        if (!user) return;
+        setUnreadNotifs(await countUnreadNotifications(user.id));
       } catch { /* ignore */ }
     };
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   const menuItems = [
     { icon: FiHome, label: t('dashboard') || 'Dashboard', href: '/dashboard' },
-    { icon: FiUser, label: t('myProfile') || 'My Profile', href: '/dashboard/profile' },
-    { icon: FiPackage, label: t('myOrder') || 'My Orders', href: '/dashboard/orders' },
+    { icon: FiCalendar, label: 'My Subscription Plan', href: '/dashboard/book-pickup' },
+    { icon: FiPackage, label: 'One-Off Pickup', href: '/dashboard/one-off-pickup' },
+    { icon: FiCreditCard, label: 'Payments', href: '/dashboard/payment-account' },
+    { icon: FiMapPin, label: 'My Address', href: '/dashboard/profile' },
+    { icon: FiPackage, label: 'Pickup History', href: '/dashboard/orders' },
     { icon: FiBell, label: 'Notifications', href: '/notifications', badge: unreadNotifs },
+    { icon: FiMessageSquare, label: 'Support', href: '/dashboard/support' },
     { icon: FiStar, label: 'Reviews', href: '/dashboard/reviews' },
     { icon: FiTag, label: 'Coupons', href: '/dashboard/coupons' },
-    { icon: FiMessageSquare, label: 'Support', href: '/dashboard/support' },
     // { icon: FiCreditCard, label: t('paymentMethod') || 'Payment', href: '/dashboard/payment-method' },
   ] as { icon: React.ComponentType<{className?: string}>; label: string; href: string; badge?: number }[];
 

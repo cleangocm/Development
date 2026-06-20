@@ -1,7 +1,14 @@
-﻿// ImgBB Image Upload Service
+// ImgBB Image Upload Service
 // NOTE: uploadImage uses the backend /upload/imgbb endpoint so the API key is read from DB (admin settings)
 import api from '@/services/api';
-const IMGBB_API_KEY = process.env.NEXT_PUBLIC_IMGBB_API_KEY || '062499640037b87a330cb09793b95435';
+const IMGBB_API_KEY = process.env.VITE_IMGBB_API_KEY;
+const getImgBbApiKey = (): string => {
+  if (!IMGBB_API_KEY) {
+    throw new Error('VITE_IMGBB_API_KEY is not configured');
+  }
+
+  return IMGBB_API_KEY;
+};
 const IMGBB_BASE_URL = 'https://api.imgbb.com/1';
 
 export interface ImgBBResponse {
@@ -64,7 +71,7 @@ export const uploadImage = async (file: File | string): Promise<string> => {
     formData.append('image', file);
   }
 
-  // Use backend endpoint — key is read from DB (admin settings)
+  // Use backend endpoint � key is read from DB (admin settings)
   const response = await api.post('/upload/imgbb', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
@@ -163,7 +170,7 @@ export interface ImgBBGetImagesResponse {
  * Get a single image from ImgBB by ID
  */
 export const getImage = async (imageId: string): Promise<ImgBBGetImageResponse['data']> => {
-  const response = await fetch(`${IMGBB_BASE_URL}/image/${imageId}?key=${IMGBB_API_KEY}`);
+  const response = await fetch(`${IMGBB_BASE_URL}/image/${imageId}?key=${getImgBbApiKey()}`);
   const result: ImgBBGetImageResponse = await response.json();
   if (result.success && result.data) return result.data;
   throw new Error(result.error?.message || 'Failed to get image');
@@ -176,7 +183,7 @@ export const getImage = async (imageId: string): Promise<ImgBBGetImageResponse['
  */
 export const getImages = async (page = 1, perPage = 100): Promise<ImgBBGetImagesResponse['data']> => {
   const response = await fetch(
-    `${IMGBB_BASE_URL}/images?key=${IMGBB_API_KEY}&page=${page}&per_page=${perPage}`
+    `${IMGBB_BASE_URL}/images?key=${getImgBbApiKey()}&page=${page}&per_page=${perPage}`
   );
   const result: ImgBBGetImagesResponse = await response.json();
   if (result.success && result.data) return result.data;

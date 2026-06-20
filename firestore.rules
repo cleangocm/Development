@@ -10,31 +10,158 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function hasRole(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
     function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
+      return signedIn()
+        && (('admin' in request.auth.token && request.auth.token.admin == true)
+          || hasRole('admin'));
+    }
+
+    function isCollector() {
+      return signedIn()
+        && (('collector' in request.auth.token && request.auth.token.collector == true)
+          || hasRole('collector'));
+    }
+
+    function ownsExistingCustomerRecord() {
+      return resource.data.customerId == request.auth.uid;
+    }
+
+    function ownsNewCustomerRecord() {
+      return request.resource.data.customerId == request.auth.uid;
+    }
+
+    function assignedExistingCollectorRecord() {
+      return isCollector() && resource.data.collectorId == request.auth.uid;
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
-        && request.resource.data.id == request.auth.uid
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.role == 'customer';
       allow update: if isAdmin()
         || (isOwner(userId)
-          && request.resource.data.id == resource.data.id
           && request.resource.data.uid == resource.data.uid
-          && request.resource.data.role == resource.data.role);
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.active == resource.data.active);
+      allow delete: if isAdmin();
     }
 
-    match /bookings/{bookingId} {
+    match /customers/{customerId} {
+      allow read: if isOwner(customerId) || isAdmin();
+      allow create: if isOwner(customerId)
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin()
+        || (isOwner(customerId)
+          && request.resource.data.userId == resource.data.userId);
+      allow delete: if isAdmin();
+    }
+
+    match /collectors/{collectorId} {
+      allow read: if isOwner(collectorId) || isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isOwner(collectorId)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.active == resource.data.active
+          && request.resource.data.payRate == resource.data.payRate);
+    }
+
+    match /addresses/{addressId} {
       allow create: if signedIn()
         && request.resource.data.customerId == request.auth.uid;
-      allow read, update: if signedIn()
-        && (resource.data.customerId == request.auth.uid
-          || resource.data.collectorId == request.auth.uid
-          || isAdmin());
+      allow read, update, delete: if isAdmin() || ownsExistingCustomerRecord();
+    }
+
+    match /serviceZones/{zoneId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /plans/{planId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAdmin() || ownsExistingCustomerRecord();
+      allow create: if isAdmin()
+        || (ownsNewCustomerRecord() && request.resource.data.status == 'pending');
+      allow update, delete: if isAdmin();
+    }
+
+    match /pickups/{pickupId} {
+      allow create: if ownsNewCustomerRecord()
+        && request.resource.data.status == 'scheduled'
+        && request.resource.data.collectorId == null;
+      allow read: if isAdmin()
+        || ownsExistingCustomerRecord()
+        || assignedExistingCollectorRecord();
+      allow update: if isAdmin()
+        || (assignedExistingCollectorRecord()
+          && request.resource.data.customerId == resource.data.customerId
+          && request.resource.data.collectorId == resource.data.collectorId
+          && request.resource.data.status in ['en_route', 'arrived', 'completed', 'missed', 'rescheduled']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'completionNotes',
+            'proofPath',
+            'completedAt',
+            'rescheduledAt',
+            'scheduledDate',
+            'updatedAt'
+          ]));
       allow delete: if isAdmin();
+    }
+
+    // Temporary compatibility path until Day 4 migrates the client to pickups.
+    match /bookings/{bookingId} {
+      allow create: if ownsNewCustomerRecord();
+      allow read: if isAdmin()
+        || ownsExistingCustomerRecord()
+        || assignedExistingCollectorRecord();
+      allow update: if isAdmin()
+        || ownsExistingCustomerRecord()
+        || assignedExistingCollectorRecord();
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAdmin() || ownsExistingCustomerRecord();
+      allow create: if ownsNewCustomerRecord()
+        && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    match /collectorDailyStats/{statId} {
+      allow read: if isAdmin()
+        || (isCollector() && resource.data.collectorId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update: if signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+      allow create, delete: if false;
+    }
+
+    match /deviceTokens/{tokenId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /settings/{settingId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
 
     match /auditLogs/{auditId} {

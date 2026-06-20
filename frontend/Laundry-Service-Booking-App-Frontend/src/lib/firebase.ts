@@ -15,6 +15,7 @@ import {
 } from 'firebase/auth';
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -39,6 +40,7 @@ if (!getApps().length) {
 
 const auth: Auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 export const auths = getAuth(app);
 
 // Initialize Analytics (client-side only)
@@ -200,4 +202,4 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return auth.onAuthStateChanged(callback);
 };
 
-export { auth, app, db, analytics, googleProvider };
+export { auth, app, db, storage, analytics, googleProvider };

@@ -1,33 +1,12 @@
-import 'package:device_preview/device_preview.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
-import 'package:ultrawash/Controller_Binding.dart';
-import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
-import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
+import 'package:ultrawash/feature/mobile_onboarding/cleango_onboarding_flow.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Stripe.publishableKey = const String.fromEnvironment(
-    'STRIPE_PUBLISHABLE_KEY',
-  );
-  Stripe.merchantIdentifier = 'merchant.com.example.ultrawash';
-  Stripe.urlScheme = 'flutterstripe';
-  await Stripe.instance.applySettings();
 
-  // Load token from storage before controllers initialize
-  final sharedPrefs = SharedPrefs();
-  await sharedPrefs.getToken();
-
-  runApp(
-    // DevicePreview(
-    //   enabled: !kReleaseMode,
-    //   builder: (context) => const MyApp(),
-    // ),
-    MyApp(),
-  );
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -41,16 +20,12 @@ class MyApp extends StatelessWidget {
       splitScreenMode: true,
       builder: (context, child) {
         return GetMaterialApp(
-          initialBinding: ControllerBinding(),
-          title: 'Ultra Wash',
+          title: 'CLEANGO CM',
           debugShowCheckedModeBanner: false,
-          // useInheritedMediaQuery: true,
-          // locale: DevicePreview.locale(context),
-          // builder: DevicePreview.appBuilder,
           theme: ThemeData(
             brightness: Brightness.light,
             colorScheme: ColorScheme.fromSeed(
-              seedColor: Color(0xFF0F7BA0),
+              seedColor: Color(0xFF16A34A),
               brightness: Brightness.light,
             ),
             useMaterial3: true,
@@ -59,14 +34,14 @@ class MyApp extends StatelessWidget {
           darkTheme: ThemeData(
             brightness: Brightness.dark,
             colorScheme: ColorScheme.fromSeed(
-              seedColor: Color(0xFF0F7BA0),
+              seedColor: Color(0xFF16A34A),
               brightness: Brightness.dark,
             ),
             useMaterial3: true,
             scaffoldBackgroundColor: Color(0xFF022531),
           ),
           themeMode: ThemeMode.light,
-          home: const SplashScreen(),
+          home: const CleanGoOnboardingFlow(),
         );
       },
     );

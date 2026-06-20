@@ -1,15 +1,12 @@
-﻿import api from '@/services/api';
+import { auth } from '@/lib/firebase';
+import { createPendingPayment, createPickup } from '@/services/cleangoRepository';
 import type { CheckoutData, OrderPayload } from '@/types/payment';
 
-/**
- * Build the order payload from checkout data
- */
 export const buildOrderPayload = (
   checkoutData: CheckoutData,
-  paymentMethod: string
+  paymentMethod: string,
 ): OrderPayload => {
   const fallbackServiceId = localStorage.getItem('serviceId') || '';
-
   const items = checkoutData.orderData.cartGroups.flatMap((group) =>
     group.items.map((item) => ({
       service: group.serviceId || fallbackServiceId,
@@ -17,14 +14,14 @@ export const buildOrderPayload = (
       quantity: item.quantity,
       price: item.price,
       subtotal: item.price * item.quantity,
-    }))
+    })),
   );
-
   const speedCharge = checkoutData.deliverySpeedCharge || 0;
   const deliveryCharge = checkoutData.orderData?.deliveryCost || 0;
   const subtotal = checkoutData.orderData?.subtotal || 0;
   const discount = checkoutData.orderData?.discount || 0;
-  const totalPayment = checkoutData.finalTotal || Math.max(subtotal - discount + deliveryCharge + speedCharge, 0);
+  const totalPayment = checkoutData.finalTotal
+    || Math.max(subtotal - discount + deliveryCharge + speedCharge, 0);
 
   return {
     items,
@@ -63,53 +60,43 @@ export const buildOrderPayload = (
   };
 };
 
-/**
- * Create order in the backend
- */
 export const createOrder = async (
   checkoutData: CheckoutData,
-  paymentMethod: string
+  paymentMethod: string,
 ): Promise<{ success: boolean; orderId?: string; totalPayment?: number; error?: string }> => {
   try {
-    const payload = buildOrderPayload(checkoutData, paymentMethod);
-    const res = await api.post('/orders', payload);
+    const user = auth.currentUser;
+    if (!user) return { success: false, error: 'Please sign in before scheduling a pickup.' };
 
-    if (res.data?.status === 'success') {
-      // Backend returns _id (MongoDB ObjectId), not orderId
-      const orderId = res.data.data?._id || res.data.data?.orderId || '';
-      const totalPayment: number = res.data.data?.totalPayment ?? 0;
-      
-      // Create notification for user about order confirmation
-      try {
-        await api.post('/notifications', {
-          title: 'Order Placed Successfully',
-          message: `Your order #${orderId} has been placed successfully. We'll notify you once it's confirmed.`,
-          type: 'order',
-          orderId: orderId
-        });
-      } catch {
-        // Don't fail the order if notification fails
-      }
-      
-      return {
-        success: true,
-        orderId,
-        totalPayment,
-      };
+    const payload = buildOrderPayload(checkoutData, paymentMethod);
+    const pickupId = await createPickup({
+      customerId: user.uid,
+      scheduledDate: payload.schedule.pickupDate,
+      notes: payload.notes,
+      addressText: payload.address,
+      contactName: payload.billingInfo.fullName,
+      contactPhone: payload.billingInfo.phone,
+    });
+
+    if (payload.totalPayment > 0) {
+      await createPendingPayment({
+        customerId: user.uid,
+        subscriptionId: null,
+        provider: paymentMethod === 'cash' || paymentMethod === 'cod' ? 'cash' : 'manual',
+        amountXaf: payload.totalPayment,
+        reference: `pickup:${pickupId}`,
+      });
     }
-    return {
-      success: false,
-      error: res.data?.message || 'Failed to create order',
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to create order. Please contact support.';
+
+    return { success: true, orderId: pickupId, totalPayment: payload.totalPayment };
+  } catch (error: unknown) {
+    const message = error instanceof Error
+      ? error.message
+      : 'Failed to schedule pickup. Please contact support.';
     return { success: false, error: message };
   }
 };
 
-/**
- * Clear all cart/checkout data from localStorage after successful order
- */
 export const clearCheckoutData = () => {
   localStorage.removeItem('cartItems');
   localStorage.removeItem('cartGroups');
@@ -118,8 +105,5 @@ export const clearCheckoutData = () => {
   localStorage.removeItem('orderData');
   localStorage.removeItem('checkoutData');
   localStorage.removeItem('appliedCoupon');
-  // Notify Header about cart cleared
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('cart-updated'));
-  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('cart-updated'));
 };

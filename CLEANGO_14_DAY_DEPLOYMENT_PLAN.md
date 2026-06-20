@@ -3,6 +3,20 @@
 **Start:** Saturday, June 13, 2026  
 **Target launch:** Friday, June 26, 2026
 
+## Progress Update - Tuesday, June 16, 2026
+
+- Day 1 workspace consolidation and source backup are complete. Firebase currently points to `clean-go-150fb`; separate staging and production project IDs still need confirmation.
+- Day 2 email/password authentication, role-aware routes, and the admin-only `setUserRole` Cloud Function are implemented.
+- Day 3 Firestore schema, composite indexes, least-privilege Firestore/Storage rules, and emulator security tests are implemented locally.
+- Day 4 Firestore repositories and trusted pickup workflow functions are implemented. Customer account/profile, pickup history/dashboard, checkout pickup creation, and pending payment creation no longer depend on MongoDB.
+- Day 5 customer booking is implemented at `/dashboard/book-pickup`: plan, supported neighborhood, address, official pickup date, contact details, review, confirmation, history, and detailed status tracking all use Firestore.
+- Day 6 plan scheduling is implemented with idempotent recurring pickup generation, deterministic pickup IDs, plan-change reconciliation, and customer/admin cancellation or rescheduling callables.
+- Day 7 collector workflow is implemented in the `/delivery` routes using Firestore queries scoped to the signed-in collector UID, trusted status actions, notes, rescheduling, and optional proof upload to Firebase Storage.
+- Day 8 admin dispatch is implemented at `/admin/delivery`: Today/Tomorrow/All pickup filters, zone grouping, collector assignment, payment/status filters, completion counts, and collector earnings rollups read from Firestore.
+- Day 9 trusted payment workflow is implemented locally with provider-neutral initiation, admin/manual verification fallback, authenticated provider callbacks, idempotent paid transitions, and audit logs.
+- Legacy laundry service catalog, support, and marketing screens remain isolated for migration or removal during Day 11; no new features should use the Express/MongoDB API.
+- Next implementation milestone: Day 10 notifications.
+
 ## Launch Scope
 
 The two-week goal is a usable waste pickup MVP, not every feature in the original UltraWash package.
@@ -161,12 +175,16 @@ Pickup statuses: `scheduled`, `assigned`, `en_route`, `arrived`, `completed`, `m
 
 ### Day 10 - Monday, June 22: Notifications
 
-- Configure Firebase Cloud Messaging.
-- Notify customers when a pickup is booked, assigned, approaching, completed, or rescheduled.
-- Notify collectors of new assignments and next-day work.
+- Configure Firebase Cloud Messaging token registration.
+- Notify customers when a pickup is booked, assigned, approaching, completed, cancelled, or rescheduled.
+- Notify customers when payment status changes.
+- Notify collectors of new assignments, assignment changes, completion records, and next-day work.
 - Add scheduled reminder functions and notification logs.
+- Connect customer and collector notification screens to Firestore launch data.
 
-**Done when:** test devices receive assignment and reminder notifications.
+**Status:** in-app Firestore notifications are implemented in `docs/DAY10_NOTIFICATIONS.md`. Browser push delivery is ready server-side but still needs the Firebase web push certificate/VAPID key in the frontend before real browser push tokens can be generated.
+
+**Done when:** test users receive assignment and reminder notifications in-app, and test devices receive browser push after VAPID configuration.
 
 ### Day 11 - Tuesday, June 23: CleanGo Rebrand and French UI
 
@@ -174,6 +192,8 @@ Pickup statuses: `scheduled`, `assigned`, `en_route`, `arrived`, `completed`, `m
 - Make French the primary interface language.
 - Keep technical Firestore values stable in English; translate display labels only.
 - Check mobile layouts and accessibility.
+
+**Status:** implemented in `docs/DAY11_REBRAND_FRENCH_UI.md` using the official CleanGo logo, generated CleanGo brand assets, French-first launch copy, and redirects away from legacy laundry catalog pages.
 
 **Done when:** no customer-facing laundry wording remains in launch paths.
 
@@ -185,6 +205,8 @@ Pickup statuses: `scheduled`, `assigned`, `en_route`, `arrived`, `completed`, `m
 - Review logs, error handling, rate limits, and data validation.
 - Run Flutter, Next.js, Functions, and Security Rules tests.
 
+**Status:** Day 12 launch readiness checks and QA runbook are implemented in `docs/DAY12_QA_SECURITY_PERFORMANCE.md`. Added `tests/launch-readiness.test.ts`, `npm run test:launch`, and `npm run test:day12` for fast regression checks around launch branding, generated plan artwork, entry points, rules, indexes, and scheduling.
+
 **Done when:** there are no critical defects or unauthorized data paths.
 
 ### Day 13 - Thursday, June 25: Staging Release and User Acceptance
@@ -194,6 +216,8 @@ Pickup statuses: `scheduled`, `assigned`, `en_route`, `arrived`, `completed`, `m
 - Test with at least one customer, two collectors, and one admin on real devices.
 - Run a complete simulated collection day.
 - Fix launch-blocking issues only.
+
+**Status:** Day 13 staging release and UAT runbook is documented in `docs/DAY13_STAGING_UAT.md`, including pre-deploy checks, deployment commands, simulated collection-day script, sign-off criteria, and launch blockers. Actual staging deploy still needs the Firebase staging project alias/ID and any required secrets.
 
 **Done when:** stakeholders sign off on booking, assignment, completion, and payment recording.
 
@@ -207,6 +231,18 @@ Pickup statuses: `scheduled`, `assigned`, `en_route`, `arrived`, `completed`, `m
 - Record rollback steps and begin a seven-day launch monitoring period.
 
 **Done when:** production booking, assignment, completion, notification, and payment recording work end to end.
+
+## Customer Platform Update - Tuesday, June 16
+
+The customer-facing scope has been added to the deployment roadmap before the remaining notification, rebrand, QA, staging, and production tasks:
+
+- Replace the legacy staff dashboard entry point with the CleanGo Customer Dashboard.
+- Add Customer Dashboard modules for subscription plan, one-off pickup, pickup history, payments, address/GPS support, support, and notifications.
+- Add a public Subscription Plans page with Basic, Standard, Premium, Business, and Enterprise monthly XAF pricing.
+- Add one-off pickup pricing for Small, Medium, and Large requests with flexible scheduling and payment choice.
+- Add a Payment Account tab for MTN Cameroon Mobile Money, Orange Cameroon Money, bank transfer/manual payment, cash on pickup, payment status, and transaction IDs.
+
+**Done when:** customers can view plans publicly, request subscription or one-off pickups, see pending payments, and reach all customer dashboard modules without using the old staff dashboard.
 
 ## Information Needed Before Implementation
 
@@ -237,4 +273,3 @@ Pickup statuses: `scheduled`, `assigned`, `en_route`, `arrived`, `completed`, `m
 - Payment webhooks are authenticated and idempotent.
 - Firestore and Storage rules pass permission tests.
 - Production has monitoring, budget alerts, backups, and documented rollback steps.
-

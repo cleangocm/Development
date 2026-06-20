@@ -33,7 +33,6 @@ const Header = () => {
     } catch { /* */ }
     return 0;
   });
-  const [headerLogo, setHeaderLogo] = useState('');
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const profileRef = useRef<HTMLDivElement>(null);
   const { t } = useTheme();
@@ -67,8 +66,7 @@ const Header = () => {
 
   const navItems = [
     { label: t('home'), href: '/' },
-    { label: t('services'), href: '/services' },
-    { label: 'Stores', href: '/stores' },
+    { label: 'Plans', href: '/subscription-plans' },
     { label: t('aboutUs'), href: '/about' },
     { label: t('contactUs'), href: '/contact' },
   ];
@@ -152,19 +150,6 @@ const Header = () => {
     };
   }, [updateCartCount]);
 
-  // Fetch header logo
-  useEffect(() => {
-    const fetchHeaderLogo = async () => {
-      try {
-        const siteRes = await api.get('/public/site-settings');
-        if (siteRes.data?.status === 'success' && siteRes.data?.data?.headerLogo) {
-          setHeaderLogo(siteRes.data.data.headerLogo);
-        }
-      } catch { /* use default */ }
-    };
-    fetchHeaderLogo();
-  }, []);
-
   // Fetch unread notification count for logged-in users
   useEffect(() => {
     if (!isAuthenticated || !user) { 
@@ -213,15 +198,14 @@ const Header = () => {
         <nav className="flex items-center justify-between gap-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-36 h-10 transition-transform duration-300 group-hover:scale-105">
+            <div className="relative w-44 h-12 transition-transform duration-300 group-hover:scale-105 sm:w-52 sm:h-14">
               <Image
-                src={headerLogo || '/Images/logo/header.png'}
-                alt="Ultra Wash Logo"
+                src="/Images/logo/header.png"
+                alt="CleanGo Logo"
                 fill
-                sizes="(max-width: 768px) 9rem, 10rem"
-                className="object-contain dark:brightness-0 dark:invert"
-                unoptimized={!!headerLogo}
-                priority={!headerLogo}
+                sizes="(max-width: 768px) 11rem, 13rem"
+                className="object-contain"
+                priority
               />
             </div>
           </Link>
@@ -328,7 +312,7 @@ const Header = () => {
                         </Link>
                       )}
                       <Link
-                        href={user.role === 'admin' ? '/admin' : user.role === 'collector' || user.role === 'delivery' ? '/delivery' : user.role === 'staff' ? '/staff' : '/dashboard/orders'}
+                        href={user.role === 'admin' ? '/admin' : user.role === 'collector' || user.role === 'delivery' ? '/delivery' : '/dashboard'}
                         onClick={() => setIsProfileOpen(false)}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#5a6a7a] dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
@@ -464,7 +448,7 @@ const Header = () => {
                 
                 {/* Dashboard Links */}
                 <Link 
-                  href={user.role === 'admin' ? '/admin' : user.role === 'collector' || user.role === 'delivery' ? '/delivery' : user.role === 'staff' ? '/staff' : '/dashboard/orders'}
+                  href={user.role === 'admin' ? '/admin' : user.role === 'collector' || user.role === 'delivery' ? '/delivery' : '/dashboard'}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center gap-2 text-[#5a6a7a] dark:text-gray-300 font-medium py-2 hover:text-[#1A3A5D] dark:hover:text-white transition-colors"
                 >

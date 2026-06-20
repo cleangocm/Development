@@ -27,7 +27,6 @@ const LoginPage = () => {
     emailOrPhone: false,
     password: false,
   });
-  const [mounted, setMounted] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -38,8 +37,6 @@ const LoginPage = () => {
       else router.replace('/');
     }
   }, [isAuthenticated, user, router]);
-
-  useEffect(() => { setMounted(true); }, []);
 
   // Handle Google Sign In - Works same as regular login
   const onGoogleSignIn = async () => {
@@ -163,37 +160,36 @@ const LoginPage = () => {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <div className="absolute inset-0 bg-linear-to-br from-[#0f2744]/20 to-transparent z-10" />
         <Image
-          src="https://images.unsplash.com/photo-1545173168-9f1947eebb7f?w=1200&h=1600&fit=crop&q=90"
-          alt="Laundry Service"
+          src="/Images/brand/cleango-hero-card.png"
+          alt="CleanGo service"
           fill
           sizes="50vw"
           className="object-cover animate-scale-in"
           priority
-          unoptimized
         />
       </div>
 
       {/* Right Side - Form */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-12 bg-white dark:bg-gray-900 min-h-screen lg:min-h-0">
-        <div className={`w-full max-w-100 sm:max-w-105 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+        <div className="w-full max-w-100 sm:max-w-105 transition-all duration-700 opacity-100 translate-y-0">
           {/* Logo */}
           <div className="flex justify-center mb-6 sm:mb-8">
             <Image
               src="/Images/logo/header.png"
-              alt="Ultra Wash Logo"
-              width={120}
-              height={50}
-              className="w-24 sm:w-28 md:w-32 h-auto dark:brightness-0 dark:invert"
+              alt="CleanGo Logo"
+              width={220}
+              height={70}
+              className="w-40 sm:w-48 md:w-52 h-auto"
             />
           </div>
 
           {/* Header */}
           <div className="text-center mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#0f2744] dark:text-white mb-2">
-              Welcome Back
+              Bienvenue !
             </h1>
             <p className="text-sm sm:text-base text-[#5a6a7a] dark:text-gray-400">
-              Access your account to manage to laundry
+              Connectez-vous pour suivre vos collectes CleanGo
             </p>
           </div>
 
@@ -399,17 +395,17 @@ const LoginPage = () => {
           {/* Auto-fill Credentials */}
           <div className="mt-6 p-4 bg-[#0f2744]/5 dark:bg-[#00BFA6]/10 rounded-xl border border-[#0f2744]/10 dark:border-[#00BFA6]/20">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-[#0f2744] dark:text-[#00BFA6]">Demo User Credentials:</p>
+              <p className="text-sm font-semibold text-[#0f2744] dark:text-[#00BFA6]">Demo customer credentials:</p>
               <button
                 type="button"
-                onClick={() => setFormData({ emailOrPhone: 'user.ultrawash@gmail.com', password: 'User@123456' })}
+                onClick={() => setFormData({ emailOrPhone: 'customer.test@cleango.local', password: 'CleanGo@123456' })}
                 className="text-xs px-3 py-1 bg-[#0f2744] dark:bg-[#00BFA6] text-white rounded-lg hover:opacity-80 transition-opacity font-medium"
               >
                 Auto Fill
               </button>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Email: user.ultrawash@gmail.com</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Password: User@123456</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Email: customer.test@cleango.local</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Password: CleanGo@123456</p>
           </div>
         </div>
       </div>

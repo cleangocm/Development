@@ -30,14 +30,14 @@ interface SiteSettings {
 }
 
 const DEFAULTS: SiteSettings = {
-  siteName: 'Ultra Wash',
-  tagline: 'Premium Laundry & Dry Cleaning',
-  email: 'support@ultrawash.com',
-  phone: '+880 1700-000001',
-  address: 'House #25, Road #11, Gulshan 2, Dhaka-1212',
+  siteName: 'CleanGo',
+  tagline: 'Collecte propre, avenir propre',
+  email: 'support@cleangocm.com',
+  phone: '+237 6XX XXX XXX',
+  address: 'Yaounde, Cameroun',
   footerLogo: '',
-  footerDescription: 'Your trusted partner for professional laundry and dry cleaning services. Quality care for every garment, delivered to your doorstep.',
-  copyrightText: '© {year} Ultra Wash. All Rights Reserved.',
+  footerDescription: 'Votre partenaire pour la collecte intelligente des dechets menagers et professionnels. Des ramassages fiables, suivis et adaptes a votre quartier.',
+  copyrightText: '© {year} CleanGo. Tous droits reserves.',
   appDownloadLinks: [],
   footerQuickLinks: [],
   socialMediaLinks: [],

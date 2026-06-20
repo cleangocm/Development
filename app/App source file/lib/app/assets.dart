@@ -2,6 +2,8 @@ class Assets {
   Assets._();
 
   static const String splash = 'assets/images/Splash.png';
+  static const String cleangoAppIcon = 'assets/images/cleango_app_icon.png';
+  static const String cleangoWordmark = 'assets/images/cleango_wordmark.png';
   // static const String login = 'assets/images/login.png';
   // static const String login2 = 'assets/images/login2.png';
   static const String splash_find = 'assets/images/Splash_find.png';

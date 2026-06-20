@@ -64,9 +64,9 @@ const AdminLoginPage = () => {
           {/* Logo */}
           <div className="mb-10">
             <div className="w-40 h-16 relative mb-6 mx-auto">
-              <Image src="/Images/logo/header.png" alt="Ultra Wash" fill sizes="10rem" className="object-contain brightness-0 invert" priority />
+              <Image src="/Images/logo/footer.png" alt="CleanGo CM" fill sizes="10rem" className="object-contain" priority />
             </div>
-            <h1 className="text-4xl font-black text-white tracking-tight">Ultra Wash</h1>
+            <h1 className="text-4xl font-black text-white tracking-tight">CleanGo CM</h1>
             <div className="flex items-center justify-center gap-2 mt-3">
               <div className="w-8 h-[2px] bg-[#00BFA6]" />
               <p className="text-[#00BFA6] font-semibold text-sm uppercase tracking-widest">Admin Portal</p>
@@ -93,7 +93,7 @@ const AdminLoginPage = () => {
           </div>
 
           {/* Footer */}
-          <p className="absolute bottom-8 text-gray-500 text-sm">© {new Date().getFullYear()} Ultra Wash. All rights reserved.</p>
+          <p className="absolute bottom-8 text-gray-500 text-sm">© {new Date().getFullYear()} CleanGo. Tous droits reserves.</p>
         </div>
       </div>
 
@@ -103,16 +103,16 @@ const AdminLoginPage = () => {
           {/* Mobile Logo */}
           <div className="lg:hidden text-center mb-8">
             <div className="w-20 h-20 bg-[#0F2744] dark:bg-[#00BFA6] border-2 border-[#0F2744] dark:border-[#00BFA6] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl p-2">
-              <Image src="/Images/logo/footer.png" alt="Ultra Wash" width={64} height={64} className="object-contain brightness-0 invert" />
+              <Image src="/Images/brand/cleango-app-icon.png" alt="CleanGo CM" width={64} height={64} className="object-cover rounded-xl" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ultra Wash</h1>
-            <p className="text-[#00BFA6] font-medium text-sm mt-1">Admin Portal</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">CleanGo CM</h1>
+            <p className="text-[#00BFA6] font-medium text-sm mt-1">Portail admin</p>
           </div>
 
           {/* Form Header */}
           <div className="text-center mb-8">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">Sign in to access admin dashboard</p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Bienvenue !</h2>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Connectez-vous pour gerer les collectes CleanGo</p>
           </div>
 
           {/* Quick Access Buttons */}
@@ -155,7 +155,7 @@ const AdminLoginPage = () => {
               <div className="relative">
                 <FiMail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@ultrawash.com"
+                  placeholder="admin.test@cleango.local"
                   className="w-full pl-12 pr-4 py-3.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#00BFA6] focus:border-transparent outline-none transition-all" required />
               </div>
             </div>
@@ -199,14 +199,14 @@ const AdminLoginPage = () => {
               <p className="text-sm font-semibold text-[#0F2744] dark:text-[#00BFA6]">Demo Admin Credentials:</p>
               <button
                 type="button"
-                onClick={() => { setEmail('admin@ultrawash.com'); setPassword('123456'); }}
+                onClick={() => { setEmail('admin.test@cleango.local'); setPassword('CleanGo@123456'); }}
                 className="text-xs px-3 py-1 bg-[#0F2744] dark:bg-[#00BFA6] text-white rounded-lg hover:opacity-80 transition-opacity font-medium"
               >
                 Auto Fill
               </button>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Email: admin@ultrawash.com</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Password: 123456</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Email: admin.test@cleango.local</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Password: CleanGo@123456</p>
           </div>
         </div>
       </div>

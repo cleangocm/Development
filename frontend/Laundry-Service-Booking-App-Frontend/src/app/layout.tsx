@@ -14,9 +14,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Ultra Wash - Premium Laundry & Dry Cleaning Services",
-  description: "Professional dry cleaning and laundry services delivered to your doorstep. We pick up, clean, and deliver with guaranteed satisfaction.",
-  keywords: "laundry, dry cleaning, wash and fold, pressing, cleaning services",
+  title: "CleanGo - Collecte propre, avenir propre",
+  description: "CleanGo organise la collecte intelligente des dechets a domicile et pour les entreprises au Cameroun.",
+  keywords: "CleanGo, collecte dechets, gestion dechets, ramassage ordures, Yaounde, Cameroun",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="fr" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head />
       <body suppressHydrationWarning={true} className={`${inter.variable} antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300`}>
         <Script src="/assets/lang-config.js" strategy="beforeInteractive" />

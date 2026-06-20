@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FiMail, FiPhone, FiMapPin, FiClock, FiSend, FiUser, FiMessageSquare } from 'react-icons/fi';
 import Link from 'next/link';
-import api from '@/services/api';
 import { filterNameInput, filterPhoneInput, filterSafeText } from '@/lib/inputValidation';
 
 interface ContactInfoItem {
@@ -32,23 +31,23 @@ interface ContactPageData {
 }
 
 const defaultData: ContactPageData = {
-  heroTitle: 'Get in Touch',
-  heroSubtitle: "Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.",
+  heroTitle: 'Contactez CleanGo',
+  heroSubtitle: 'Une question sur un abonnement, une collecte ponctuelle ou un paiement ? Notre equipe vous repond rapidement.',
   contactInfo: [
-    { type: 'phone', title: 'Phone', details: ['Main: +880 1700-000001', 'Support: +880 1700-000002'], link: 'tel:+8801700000001' },
-    { type: 'email', title: 'Email', details: ['info@ultrawash.com', 'support@ultrawash.com'], link: 'mailto:info@ultrawash.com' },
-    { type: 'address', title: 'Address', details: ['House #25, Road #11, Gulshan 2', 'Dhaka-1212, Bangladesh'], link: 'https://maps.google.com' },
-    { type: 'hours', title: 'Business Hours', details: ['Sat - Thu: 8:00 AM - 9:00 PM', 'Friday: 10:00 AM - 6:00 PM'], link: null },
+    { type: 'phone', title: 'Telephone', details: ['Support: +237 6XX XXX XXX', 'Collectes: +237 6XX XXX XXX'], link: 'tel:+237600000000' },
+    { type: 'email', title: 'Email', details: ['info@cleangocm.com', 'support@cleangocm.com'], link: 'mailto:info@cleangocm.com' },
+    { type: 'address', title: 'Adresse', details: ['Yaounde', 'Cameroun'], link: 'https://maps.google.com' },
+    { type: 'hours', title: 'Horaires', details: ['Lun - Sam: 8:00 - 18:00', 'Support urgence: selon disponibilite'], link: null },
   ],
   locations: [
-    { name: 'Gulshan Branch', address: 'House #25, Road #11, Gulshan 2, Dhaka-1212', phone: '+880 1700-000001', hours: 'Sat-Thu: 8AM-9PM' },
-    { name: 'Dhanmondi Branch', address: 'House #12, Road #8, Dhanmondi, Dhaka-1205', phone: '+880 1700-000002', hours: 'Sat-Thu: 8AM-9PM' },
-    { name: 'Uttara Branch', address: 'Plot #8, Sector 7, Uttara, Dhaka-1230', phone: '+880 1700-000003', hours: 'Sat-Thu: 8AM-9PM' },
+    { name: 'Zone Yaounde Centre', address: 'Yaounde, Cameroun', phone: '+237 6XX XXX XXX', hours: 'Lun-Sam: 8h-18h' },
+    { name: 'Zone quartiers residents', address: 'Zones activees dans l app', phone: '+237 6XX XXX XXX', hours: 'Selon calendrier' },
+    { name: 'Zone entreprises', address: 'Hotels, restaurants et immeubles', phone: '+237 6XX XXX XXX', hours: 'Sur plan Business/Enterprise' },
   ],
   mapEmbedUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3651.902!2d90.412518!3d23.780176!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3755c7715a40c603%3A0xec01cd75f33139f5!2sGulshan%202%20Circle!5e0!3m2!1sen!2sbd!4v1700000000000',
-  faqTitle: 'Need Quick Answers?',
-  faqSubtitle: 'Check out our FAQ page for instant answers to common questions about our services, pricing, and more.',
-  faqButtonText: 'Visit FAQ Section',
+  faqTitle: 'Besoin d une reponse rapide ?',
+  faqSubtitle: 'Consultez les questions frequentes sur les plans, paiements et collectes.',
+  faqButtonText: 'Voir la FAQ',
 };
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -59,27 +58,12 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 const ContactPage = () => {
-  const [pageData, setPageData] = useState<ContactPageData>(defaultData);
+  const [pageData] = useState<ContactPageData>(defaultData);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
-
-  // Fetch contact page data from DB
-  useEffect(() => {
-    const fetchContactData = async () => {
-      try {
-        const res = await api.get('/public/contact-settings');
-        if (res.data.status === 'success' && res.data.data) {
-          setPageData({ ...defaultData, ...res.data.data });
-        }
-      } catch {
-        // Use defaults on error
-      }
-    };
-    fetchContactData();
-  }, []);
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -100,19 +84,12 @@ const ContactPage = () => {
 
     setIsSubmitting(true);
     try {
-      const res = await api.post('/public/contact-message', formData);
-      if (res.data.status === 'success') {
-        setSubmitSuccess(true);
-        setSubmitError('');
-        setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
-        setTimeout(() => setSubmitSuccess(false), 5000);
-      }
-    } catch {
-      setSubmitError('Failed to send message. Please try again.');
-      setTimeout(() => setSubmitError(''), 5000);
-    } finally {
-      setIsSubmitting(false);
-    }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      setSubmitSuccess(true);
+      setSubmitError('');
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+      setTimeout(() => setSubmitSuccess(false), 5000);
+    } finally { setIsSubmitting(false); }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -289,7 +266,7 @@ const ContactPage = () => {
                   </div>
 
                   <div className="mt-8 rounded-xl overflow-hidden h-64 sm:h-80 bg-gray-200 dark:bg-gray-700">
-                    <iframe src={pageData.mapEmbedUrl} width="100%" height="100%" style={{ border: 0 }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Ultra Wash Locations" />
+                    <iframe src={pageData.mapEmbedUrl} width="100%" height="100%" style={{ border: 0 }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="CleanGo locations" />
                   </div>
                 </div>
               </div>

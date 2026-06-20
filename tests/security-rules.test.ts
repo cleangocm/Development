@@ -1,0 +1,226 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  RulesTestEnvironment,
+  assertFails,
+  assertSucceeds,
+  initializeTestEnvironment,
+} from '@firebase/rules-unit-testing';
+import { deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { getBytes, ref, uploadBytes } from 'firebase/storage';
+import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
+
+let testEnv: RulesTestEnvironment;
+
+const projectId = 'cleango-rules-test';
+const customerA = 'customer-a';
+const customerB = 'customer-b';
+const collectorA = 'collector-a';
+const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST?.split(':') ?? ['127.0.0.1', '18080'];
+const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST?.split(':') ?? ['127.0.0.1', '19199'];
+
+beforeAll(async () => {
+  testEnv = await initializeTestEnvironment({
+    projectId,
+    firestore: {
+      host: firestoreHost[0],
+      port: Number(firestoreHost[1]),
+      rules: readFileSync(resolve('firestore.rules'), 'utf8'),
+    },
+    storage: {
+      host: storageHost[0],
+      port: Number(storageHost[1]),
+      rules: readFileSync(resolve('storage.rules'), 'utf8'),
+    },
+  });
+});
+
+describe('CleanGo Storage rules', () => {
+  const image = new Uint8Array([137, 80, 78, 71]);
+
+  it('isolates customer payment receipts', async () => {
+    const ownerStorage = testEnv.authenticatedContext(customerA, { role: 'customer' }).storage();
+    const otherStorage = testEnv.authenticatedContext(customerB, { role: 'customer' }).storage();
+    const path = `paymentReceipts/${customerA}/payment-a/receipt.png`;
+
+    await assertSucceeds(uploadBytes(ref(ownerStorage, path), image, { contentType: 'image/png' }));
+    await assertSucceeds(getBytes(ref(ownerStorage, path)));
+    await assertFails(getBytes(ref(otherStorage, path)));
+  });
+
+  it('allows pickup proof only to the path customer, collector, or admin', async () => {
+    const collectorStorage = testEnv.authenticatedContext(collectorA, {
+      role: 'collector',
+      collector: true,
+    }).storage();
+    const customerStorage = testEnv.authenticatedContext(customerA, { role: 'customer' }).storage();
+    const otherStorage = testEnv.authenticatedContext(customerB, { role: 'customer' }).storage();
+    const path = `pickupProof/${customerA}/${collectorA}/pickup-a/proof.png`;
+
+    await assertSucceeds(uploadBytes(ref(collectorStorage, path), image, { contentType: 'image/png' }));
+    await assertSucceeds(getBytes(ref(customerStorage, path)));
+    await assertFails(getBytes(ref(otherStorage, path)));
+  });
+
+  it('rejects oversized or non-image pickup proof', async () => {
+    const collectorStorage = testEnv.authenticatedContext(collectorA, {
+      role: 'collector',
+      collector: true,
+    }).storage();
+    const path = `pickupProof/${customerA}/${collectorA}/pickup-a/proof.txt`;
+
+    await assertFails(uploadBytes(ref(collectorStorage, path), image, { contentType: 'text/plain' }));
+  });
+});
+
+afterEach(async () => testEnv.clearFirestore());
+afterAll(async () => testEnv.cleanup());
+
+async function seed(path: string, data: Record<string, unknown>) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), path), data);
+  });
+}
+
+describe('CleanGo Firestore rules', () => {
+  it('allows the customer Day 5 booking transaction', async () => {
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'addresses/address-a'), {
+      customerId: customerA,
+      addressLine: 'Rue 1, Essos',
+      serviceZoneId: 'yaounde-supported',
+    });
+    batch.set(doc(db, 'subscriptions/subscription-a'), {
+      customerId: customerA,
+      planId: 'basic',
+      status: 'pending',
+    });
+    batch.set(doc(db, 'pickups/pickup-a'), {
+      customerId: customerA,
+      collectorId: null,
+      subscriptionId: 'subscription-a',
+      addressId: 'address-a',
+      scheduledDate: '2026-06-16',
+      status: 'scheduled',
+    });
+    batch.set(doc(db, 'payments/payment-a'), {
+      customerId: customerA,
+      subscriptionId: 'subscription-a',
+      amountXaf: 0,
+      provider: 'manual',
+      status: 'pending',
+    });
+
+    await assertSucceeds(batch.commit());
+  });
+
+  it('rejects customer-created assigned pickups or active subscriptions', async () => {
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+    await assertFails(setDoc(doc(db, 'pickups/pickup-a'), {
+      customerId: customerA,
+      collectorId: collectorA,
+      scheduledDate: '2026-06-16',
+      status: 'assigned',
+    }));
+    await assertFails(setDoc(doc(db, 'subscriptions/subscription-a'), {
+      customerId: customerA,
+      planId: 'basic',
+      status: 'active',
+    }));
+  });
+
+  it('allows a customer to create and read their own pickup', async () => {
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+    const pickup = doc(db, 'pickups/pickup-a');
+
+    await assertSucceeds(setDoc(pickup, {
+      customerId: customerA,
+      collectorId: null,
+      scheduledDate: '2026-06-16',
+      status: 'scheduled',
+    }));
+    await assertSucceeds(getDoc(pickup));
+  });
+
+  it('rejects cross-customer pickup access', async () => {
+    await seed('pickups/pickup-a', {
+      customerId: customerA,
+      collectorId: collectorA,
+      scheduledDate: '2026-06-16',
+      status: 'assigned',
+    });
+    const db = testEnv.authenticatedContext(customerB, { role: 'customer' }).firestore();
+
+    await assertFails(getDoc(doc(db, 'pickups/pickup-a')));
+  });
+
+  it('requires customer cancellation and rescheduling to use trusted functions', async () => {
+    await seed('pickups/pickup-a', {
+      customerId: customerA,
+      collectorId: collectorA,
+      scheduledDate: '2026-06-16',
+      status: 'assigned',
+    });
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertFails(updateDoc(doc(db, 'pickups/pickup-a'), { status: 'cancelled' }));
+    await assertFails(updateDoc(doc(db, 'pickups/pickup-a'), {
+      status: 'rescheduled',
+      scheduledDate: '2026-06-18',
+    }));
+  });
+
+  it('allows only the assigned collector to read and update a pickup', async () => {
+    await seed('pickups/pickup-a', {
+      customerId: customerA,
+      collectorId: collectorA,
+      scheduledDate: '2026-06-16',
+      status: 'assigned',
+    });
+    const assignedDb = testEnv.authenticatedContext(collectorA, {
+      role: 'collector',
+      collector: true,
+    }).firestore();
+    const otherDb = testEnv.authenticatedContext('collector-b', {
+      role: 'collector',
+      collector: true,
+    }).firestore();
+
+    await assertSucceeds(getDoc(doc(assignedDb, 'pickups/pickup-a')));
+    await assertSucceeds(updateDoc(doc(assignedDb, 'pickups/pickup-a'), { status: 'en_route' }));
+    await assertFails(getDoc(doc(otherDb, 'pickups/pickup-a')));
+    await assertFails(updateDoc(doc(otherDb, 'pickups/pickup-a'), { status: 'en_route' }));
+  });
+
+  it('prevents customers from marking payments paid', async () => {
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+    const payment = doc(db, 'payments/payment-a');
+
+    await assertSucceeds(setDoc(payment, {
+      customerId: customerA,
+      amountXaf: 5000,
+      provider: 'manual',
+      status: 'pending',
+    }));
+    await assertFails(updateDoc(payment, { status: 'paid' }));
+  });
+
+  it('allows admins to manage operational records', async () => {
+    await seed('pickups/pickup-a', {
+      customerId: customerA,
+      collectorId: null,
+      status: 'scheduled',
+    });
+    const db = testEnv.authenticatedContext('admin-a', {
+      role: 'admin',
+      admin: true,
+    }).firestore();
+
+    await assertSucceeds(updateDoc(doc(db, 'pickups/pickup-a'), {
+      collectorId: collectorA,
+      status: 'assigned',
+    }));
+    await assertSucceeds(deleteDoc(doc(db, 'pickups/pickup-a')));
+  });
+});

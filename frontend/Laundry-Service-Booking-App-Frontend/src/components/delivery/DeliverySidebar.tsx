@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import SafeImage from '@/components/ui/SafeImage';
@@ -29,9 +30,9 @@ const DeliverySidebar = ({ isOpen, onClose }: DeliverySidebarProps) => {
 
   const menuItems = [
     { icon: FiHome, label: 'Dashboard', href: '/delivery' },
-    { icon: FiPackage, label: 'Assigned Orders', href: '/delivery/assigned' },
-    { icon: FiClock, label: 'Pickup', href: '/delivery/pickup' },
-    { icon: FiTruck, label: 'In Transit', href: '/delivery/in-transit' },
+    { icon: FiPackage, label: 'Today', href: '/delivery/assigned' },
+    { icon: FiClock, label: 'Tomorrow', href: '/delivery/pickup' },
+    { icon: FiTruck, label: 'Missed', href: '/delivery/in-transit' },
     { icon: FiCheckCircle, label: 'Completed', href: '/delivery/completed' },
     { icon: FiMapPin, label: 'Order Info', href: '/delivery/route' },
     { icon: FiBell, label: 'Notifications', href: '/delivery/notifications' },
@@ -59,11 +60,11 @@ const DeliverySidebar = ({ isOpen, onClose }: DeliverySidebarProps) => {
       `}>
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           <Link href="/delivery" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-linear-to-br from-[#148f77] to-[#117a65] rounded-xl flex items-center justify-center shadow-lg shadow-[#148f77]/30">
-              <span className="text-white font-black text-sm">UW</span>
+            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shadow-lg shadow-[#148f77]/30 p-1">
+              <Image src="/Images/brand/cleango-app-icon.png" alt="CleanGo CM" width={32} height={32} className="rounded-lg object-cover" />
             </div>
             <div>
-              <h1 className="font-bold text-[15px] leading-tight">Ultra Wash</h1>
+              <h1 className="font-bold text-[15px] leading-tight">CleanGo CM</h1>
               <p className="text-[10px] text-[#148f77] font-semibold uppercase tracking-widest">Delivery Panel</p>
             </div>
           </Link>

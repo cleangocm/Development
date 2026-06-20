@@ -1,0 +1,17 @@
+{
+  "name": "cleango-workspace",
+  "private": true,
+  "scripts": {
+    "test:scheduling": "vitest run tests/scheduling.test.ts",
+    "test:rules": "firebase emulators:exec --only firestore,storage \"vitest run tests/security-rules.test.ts\"",
+    "test:launch": "vitest run tests/launch-readiness.test.ts",
+    "test:day12": "npm run test:scheduling && npm run test:launch"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.9.1",
+    "firebase-tools": "^14.6.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.1"
+  }
+}

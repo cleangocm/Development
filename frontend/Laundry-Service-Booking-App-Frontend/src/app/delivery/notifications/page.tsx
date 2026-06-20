@@ -2,23 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import DeliveryLayout from '@/components/delivery/DeliveryLayout';
-import api from '@/services/api';
 import { FiBell, FiLoader, FiCheck, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
-
-interface Notification {
-  _id: string;
-  title: string;
-  message: string;
-  type: string;
-  isRead: boolean;
-  orderId?: string;
-  createdAt: string;
-}
+import {
+  listUserNotifications,
+  markNotificationRead,
+} from '@/services/cleangoRepository';
+import { useAuthStore } from '@/store/authStore';
+import type { CleanGoNotification } from '@/types/cleango';
 
 const DeliveryNotificationsPage = () => {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { user } = useAuthStore();
+  const [notifications, setNotifications] = useState<CleanGoNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -28,29 +24,30 @@ const DeliveryNotificationsPage = () => {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/notifications?page=${page}&limit=20`);
-      if (res.data?.status === 'success') {
-        setNotifications(res.data.data?.notifications || []);
-        setUnreadCount(res.data.data?.unreadCount || 0);
-        setTotal(res.data.data?.total || 0);
-        setTotalPages(res.data.data?.totalPages || 1);
-      }
+      if (!user) return;
+      const allNotifications = await listUserNotifications(user.id, 100);
+      const start = (page - 1) * 20;
+      setNotifications(allNotifications.slice(start, start + 20));
+      setUnreadCount(allNotifications.filter((notification) => !notification.read).length);
+      setTotal(allNotifications.length);
+      setTotalPages(Math.max(1, Math.ceil(allNotifications.length / 20)));
     } catch { setNotifications([]); }
     finally { setLoading(false); }
-  }, [page]);
+  }, [page, user]);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
   const markAsRead = async (id: string) => {
-    try { await api.put(`/notifications/${id}/read`); fetchNotifications(); } catch { /* */ }
+    try { await markNotificationRead(id); fetchNotifications(); } catch { /* */ }
   };
 
-  const timeAgo = (dateStr: string) => {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  const timeAgo = (notification: CleanGoNotification) => {
+    const date = notification.createdAt?.toDate?.() || new Date();
+    const diff = Math.floor((Date.now() - date.getTime()) / 1000);
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} hour${Math.floor(diff / 3600) > 1 ? 's' : ''} ago`;
-    return new Date(dateStr).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
   };
 
   const getIcon = (type: string) => {
@@ -86,11 +83,11 @@ const DeliveryNotificationsPage = () => {
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
             {notifications.map((n) => (
-              <div key={n._id}
-                className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors ${!n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+              <div key={n.id}
+                className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors ${!n.read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
                 onClick={() => {
-                  if (!n.isRead) markAsRead(n._id);
-                  if (n.orderId) router.push('/delivery/assigned');
+                  if (!n.read) markAsRead(n.id);
+                  if (n.pickupId) router.push('/delivery/assigned');
                 }}>
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 text-lg">
@@ -99,13 +96,13 @@ const DeliveryNotificationsPage = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{n.title}</h3>
-                      {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
+                      {!n.read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />}
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{n.message}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{timeAgo(n.createdAt)}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{n.body}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{timeAgo(n)}</p>
                   </div>
-                  {!n.isRead && (
-                    <button onClick={(e) => { e.stopPropagation(); markAsRead(n._id); }}
+                  {!n.read && (
+                    <button onClick={(e) => { e.stopPropagation(); markAsRead(n.id); }}
                       className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-gray-400 hover:text-green-600 transition-colors shrink-0" title="Mark as read">
                       <FiCheck className="w-4 h-4" />
                     </button>

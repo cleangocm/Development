@@ -29,11 +29,11 @@ const DeliveryLoginPage = () => {
       const userStr = localStorage.getItem('auth_user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        if (user.role !== 'delivery') {
+        if (!['collector', 'delivery'].includes(user.role)) {
           localStorage.removeItem('auth_token');
           localStorage.removeItem('auth_user');
           useAuthStore.getState().logout();
-          setError('Access denied. You do not have delivery access.');
+          setError('Access denied. You do not have collector access.');
           setIsLoading(false);
           return;
         }
@@ -69,15 +69,15 @@ const DeliveryLoginPage = () => {
           <div className="mb-10">
             <div className="w-40 h-16 relative mb-6 mx-auto">
               <Image
-                src="/Images/logo/header.png"
-                alt="Ultra Wash Logo"
+                src="/Images/logo/footer.png"
+                alt="CleanGo Logo"
                 fill
                 sizes="10rem"
-                className="object-contain brightness-0 invert"
+                className="object-contain"
                 priority
               />
             </div>
-            <h1 className="text-4xl font-black text-white tracking-tight">Ultra Wash</h1>
+            <h1 className="text-4xl font-black text-white tracking-tight">CleanGo CM</h1>
             <div className="flex items-center justify-center gap-2 mt-3">
               <div className="w-8 h-[2px] bg-[#148f77]" />
               <p className="text-[#148f77] font-semibold text-sm uppercase tracking-widest">Delivery Portal</p>
@@ -103,7 +103,7 @@ const DeliveryLoginPage = () => {
           </div>
 
           <p className="absolute bottom-8 text-green-200 text-sm">
-            © {new Date().getFullYear()} Ultra Wash. All rights reserved.
+            © {new Date().getFullYear()} CleanGo. Tous droits reserves.
           </p>
         </div>
       </div>
@@ -115,10 +115,10 @@ const DeliveryLoginPage = () => {
             <div className="w-32 h-12 relative mx-auto mb-4">
               <Image
                 src="/Images/logo/header.png"
-                alt="Ultra Wash Logo"
+                alt="CleanGo Logo"
                 fill
                 sizes="8rem"
-                className="object-contain dark:brightness-0 dark:invert"
+                className="object-contain"
                 priority
               />
             </div>
@@ -126,8 +126,8 @@ const DeliveryLoginPage = () => {
           </div>
 
           <div className="text-center mb-8">
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Welcome Back</h2>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">Sign in to access delivery dashboard</p>
+            <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Bienvenue !</h2>
+            <p className="text-gray-500 dark:text-gray-400 mt-2">Connectez-vous pour gerer vos collectes</p>
           </div>
 
           {/* Quick Access Buttons */}
@@ -174,7 +174,7 @@ const DeliveryLoginPage = () => {
                   id="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="delivery1@ultrawash.com"
+                  placeholder="collector.test@cleango.local"
                   className="w-full pl-12 pr-4 py-3.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#148f77] focus:border-transparent outline-none transition-all"
                   required
                 />
@@ -254,8 +254,8 @@ const DeliveryLoginPage = () => {
           <div className="text-center space-y-4">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Contact IT support at{' '}
-              <a href="mailto:support@ultrawash.com" className="text-[#148f77] hover:underline">
-                support@ultrawash.com
+              <a href="mailto:support@cleangocm.com" className="text-[#148f77] hover:underline">
+                support@cleangocm.com
               </a>
             </p>
             <Link 
@@ -271,14 +271,14 @@ const DeliveryLoginPage = () => {
               <p className="text-sm font-medium text-green-800 dark:text-green-300">Delivery Credentials:</p>
               <button
                 type="button"
-                onClick={() => { setEmail('delivery1@ultrawash.com'); setPassword('123456'); }}
+                onClick={() => { setEmail('collector.test@cleango.local'); setPassword('CleanGo@123456'); }}
                 className="text-xs px-3 py-1 bg-[#0e6251] text-white rounded-lg hover:opacity-80 transition-opacity font-medium"
               >
                 Auto Fill
               </button>
             </div>
-            <p className="text-sm text-green-600 dark:text-green-400">Email: delivery1@ultrawash.com</p>
-            <p className="text-sm text-green-600 dark:text-green-400">Password: 123456</p>
+            <p className="text-sm text-green-600 dark:text-green-400">Email: collector.test@cleango.local</p>
+            <p className="text-sm text-green-600 dark:text-green-400">Password: CleanGo@123456</p>
           </div>
         </div>
       </div>
