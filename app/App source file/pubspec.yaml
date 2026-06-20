@@ -41,6 +41,7 @@ dependencies:
   logger: ^2.6.2
   shared_preferences: ^2.5.4
   google_fonts: ^6.3.2
+  google_sign_in: ^6.3.0
   gradient_borders: ^1.0.2
   iconsax: ^0.0.8
   http: ^1.6.0
