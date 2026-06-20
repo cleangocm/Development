@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
 import 'package:ultrawash/feature/mobile_onboarding/cleango_onboarding_flow.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load token from storage before controllers initialize.
+  final sharedPrefs = SharedPrefs();
+  await sharedPrefs.getToken();
 
   runApp(MyApp());
 }
