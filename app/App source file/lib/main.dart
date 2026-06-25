@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
+import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
 import 'package:ultrawash/feature/mobile_onboarding/cleango_onboarding_flow.dart';
 
@@ -33,6 +34,7 @@ class MyApp extends StatelessWidget {
       splitScreenMode: true,
       builder: (context, child) {
         return GetMaterialApp(
+          initialBinding: ControllerBinding(),
           title: 'CLEANGO CM',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
