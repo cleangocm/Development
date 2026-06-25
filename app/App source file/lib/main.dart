@@ -4,7 +4,7 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
 import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
-import 'package:ultrawash/feature/mobile_onboarding/cleango_onboarding_flow.dart';
+import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,7 +56,7 @@ class MyApp extends StatelessWidget {
             scaffoldBackgroundColor: Color(0xFF022531),
           ),
           themeMode: ThemeMode.light,
-          home: const CleanGoOnboardingFlow(),
+          home: const SplashScreen(),
         );
       },
     );
