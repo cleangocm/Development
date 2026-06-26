@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/address.dart';
 
 class AddressCard extends StatelessWidget {
-  const AddressCard({
-    required this.primaryAddress,
-    required this.serviceZone,
-    required this.isWithinServiceZone,
-    super.key,
-  });
+  const AddressCard({required this.address, super.key});
 
-  final String primaryAddress;
-  final String serviceZone;
-  final bool isWithinServiceZone;
+  final Address address;
 
   @override
   Widget build(BuildContext context) {
@@ -40,17 +34,17 @@ class AddressCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            primaryAddress,
+            address.formattedAddress,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Icon(
-                isWithinServiceZone
+                address.isWithinServiceArea
                     ? Icons.gps_fixed
                     : Icons.gps_not_fixed_outlined,
-                color: isWithinServiceZone
+                color: address.isWithinServiceArea
                     ? const Color(0xFF16A34A)
                     : const Color(0xFFB45309),
                 size: 19,
@@ -58,9 +52,9 @@ class AddressCard extends StatelessWidget {
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
-                  serviceZone,
+                  address.serviceZone,
                   style: TextStyle(
-                    color: isWithinServiceZone
+                    color: address.isWithinServiceArea
                         ? const Color(0xFF15803D)
                         : const Color(0xFFB45309),
                     fontWeight: FontWeight.w700,

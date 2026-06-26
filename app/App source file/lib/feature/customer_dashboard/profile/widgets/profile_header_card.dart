@@ -1,20 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/customer.dart';
 
 class ProfileHeaderCard extends StatelessWidget {
-  const ProfileHeaderCard({
-    required this.name,
-    required this.phoneNumber,
-    required this.email,
-    required this.serviceArea,
-    this.avatarUrl,
-    super.key,
-  });
+  const ProfileHeaderCard({required this.customer, super.key});
 
-  final String name;
-  final String phoneNumber;
-  final String email;
-  final String serviceArea;
-  final String? avatarUrl;
+  final Customer customer;
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +24,12 @@ class ProfileHeaderCard extends StatelessWidget {
           final avatar = CircleAvatar(
             radius: 38,
             backgroundColor: const Color(0xFFDDF7E5),
-            backgroundImage: avatarUrl == null
+            backgroundImage: customer.avatarUrl == null
                 ? null
-                : NetworkImage(avatarUrl!),
-            child: avatarUrl == null
+                : NetworkImage(customer.avatarUrl!),
+            child: customer.avatarUrl == null
                 ? Text(
-                    name.substring(0, 1).toUpperCase(),
+                    customer.fullName.substring(0, 1).toUpperCase(),
                     style: const TextStyle(
                       color: Color(0xFF0F172A),
                       fontSize: 29,
@@ -54,7 +44,7 @@ class ProfileHeaderCard extends StatelessWidget {
                 : CrossAxisAlignment.start,
             children: [
               Text(
-                name,
+                customer.fullName,
                 textAlign: compact ? TextAlign.center : TextAlign.start,
                 style: const TextStyle(
                   color: Colors.white,
@@ -63,13 +53,16 @@ class ProfileHeaderCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              _ContactLine(icon: Icons.phone_outlined, value: phoneNumber),
+              _ContactLine(
+                icon: Icons.phone_outlined,
+                value: customer.phoneNumber,
+              ),
               const SizedBox(height: 7),
-              _ContactLine(icon: Icons.email_outlined, value: email),
+              _ContactLine(icon: Icons.email_outlined, value: customer.email),
               const SizedBox(height: 7),
               _ContactLine(
                 icon: Icons.location_on_outlined,
-                value: serviceArea,
+                value: customer.serviceArea,
                 iconColor: const Color(0xFF86EFAC),
               ),
             ],

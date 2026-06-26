@@ -1,29 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/subscription.dart';
 
 class SubscriptionCard extends StatelessWidget {
-  const SubscriptionCard({
-    required this.planName,
-    required this.renewalDate,
-    required this.remainingCollections,
-    super.key,
-  });
+  const SubscriptionCard({required this.subscription, super.key});
 
-  final String planName;
-  final String renewalDate;
-  final int remainingCollections;
+  final Subscription? subscription;
 
   @override
   Widget build(BuildContext context) {
+    final activeSubscription = subscription;
     return _ProfileSectionCard(
       icon: Icons.recycling,
       title: 'My subscription',
       child: Column(
         children: [
-          _DetailRow(label: 'Current plan', value: planName),
+          _DetailRow(
+            label: 'Current plan',
+            value: activeSubscription == null
+                ? 'No active plan'
+                : _planLabel(activeSubscription.plan),
+          ),
           const SizedBox(height: 10),
-          _DetailRow(label: 'Renewal date', value: renewalDate),
+          _DetailRow(
+            label: 'Renewal date',
+            value: activeSubscription == null
+                ? 'Not scheduled'
+                : _dateLabel(activeSubscription.renewalDate),
+          ),
           const SizedBox(height: 10),
-          _DetailRow(label: 'Collections left', value: '$remainingCollections'),
+          _DetailRow(
+            label: 'Collections left',
+            value: '${activeSubscription?.remainingCollections ?? 0}',
+          ),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
@@ -113,4 +121,36 @@ class _DetailRow extends StatelessWidget {
       ],
     );
   }
+}
+
+String _planLabel(SubscriptionPlan plan) {
+  return switch (plan) {
+    SubscriptionPlan.basic => 'Basic Plan',
+    SubscriptionPlan.standard => 'Standard Plan',
+    SubscriptionPlan.premium => 'Premium Plan',
+    SubscriptionPlan.business => 'Business Plan',
+    SubscriptionPlan.enterprise => 'Enterprise Plan',
+  };
+}
+
+String _dateLabel(DateTime date) {
+  return '${date.day} ${_monthName(date.month)} ${date.year}';
+}
+
+String _monthName(int month) {
+  const names = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return names[month - 1];
 }
