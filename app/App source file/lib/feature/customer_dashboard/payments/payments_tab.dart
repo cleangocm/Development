@@ -1,44 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/feature/customer_dashboard/payments/controller/payments_tab_controller.dart';
 import 'package:ultrawash/feature/customer_dashboard/payments/widgets/empty_payments_state.dart';
 import 'package:ultrawash/feature/customer_dashboard/payments/widgets/invoice_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_history_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_method_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_summary_card.dart';
 
-class PaymentsTab extends StatelessWidget {
-  const PaymentsTab({super.key});
+class PaymentsTab extends StatefulWidget {
+  const PaymentsTab({super.key, PaymentsTabController? controller})
+    : _controller = controller;
 
-  static const _transactions = [
-    PaymentHistoryCard(
-      transactionId: 'CG-2026-0621-1842',
-      date: '21 June 2026',
-      amount: '5,000 XAF',
-      method: 'MTN Mobile Money',
-      status: PaymentStatus.paid,
-    ),
-    PaymentHistoryCard(
-      transactionId: 'CG-2026-0612-0918',
-      date: '12 June 2026',
-      amount: '5,000 XAF',
-      method: 'Stripe / Credit Card',
-      status: PaymentStatus.refunded,
-    ),
-  ];
+  final PaymentsTabController? _controller;
 
-  static const _invoices = [
-    InvoiceCard(
-      invoiceNumber: 'INV-CG-2026-0071',
-      billingPeriod: 'July 2026',
-      amount: '5,000 XAF',
-      status: PaymentStatus.pending,
-    ),
-    InvoiceCard(
-      invoiceNumber: 'INV-CG-2026-0060',
-      billingPeriod: 'June 2026',
-      amount: '5,000 XAF',
-      status: PaymentStatus.paid,
-    ),
-  ];
+  @override
+  State<PaymentsTab> createState() => _PaymentsTabState();
+}
+
+class _PaymentsTabState extends State<PaymentsTab> {
+  late final PaymentsTabController _controller =
+      widget._controller ?? PaymentsTabController.mock();
+  late Future<PaymentsTabViewData> _paymentsData = _controller.load();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PaymentsTabViewData>(
+      future: _paymentsData,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _PaymentsLoadingState();
+        }
+
+        if (snapshot.hasError) {
+          return _PaymentsErrorState(onRetry: _retry);
+        }
+
+        return _PaymentsContent(
+          data: snapshot.data ?? PaymentsTabViewData.empty(),
+        );
+      },
+    );
+  }
+
+  void _retry() {
+    setState(() {
+      _paymentsData = _controller.load();
+    });
+  }
+}
+
+class _PaymentsContent extends StatelessWidget {
+  const _PaymentsContent({required this.data});
+
+  final PaymentsTabViewData data;
 
   @override
   Widget build(BuildContext context) {
@@ -59,27 +72,87 @@ class PaymentsTab extends StatelessWidget {
           style: TextStyle(color: Color(0xFF64748B)),
         ),
         const SizedBox(height: 22),
-        const PaymentSummaryCard(
-          outstandingBalance: '5,000 XAF',
-          paidThisMonth: '5,000 XAF',
-          subscriptionStatus: 'Active',
+        PaymentSummaryCard(
+          outstandingBalanceXaf: data.outstandingBalanceXaf,
+          paidThisMonthXaf: data.paidThisMonthXaf,
+          subscriptionStatus: data.subscriptionStatus,
         ),
         const SizedBox(height: 24),
         const _SectionTitle(title: 'Payment methods'),
         const SizedBox(height: 12),
-        const PaymentMethodCard(),
+        PaymentMethodCard(methods: data.supportedMethods),
         const SizedBox(height: 26),
         const _SectionTitle(title: 'Invoices'),
         const SizedBox(height: 12),
-        _ResponsiveCardGrid(children: _invoices),
+        if (data.invoices.isEmpty)
+          const EmptyPaymentsState()
+        else
+          _ResponsiveCardGrid(
+            children: data.invoices
+                .map((payment) => InvoiceCard(payment: payment))
+                .toList(growable: false),
+          ),
         const SizedBox(height: 26),
         const _SectionTitle(title: 'Payment history'),
         const SizedBox(height: 12),
-        if (_transactions.isEmpty)
+        if (data.payments.isEmpty)
           const EmptyPaymentsState()
         else
-          _ResponsiveCardGrid(children: _transactions),
+          _ResponsiveCardGrid(
+            children: data.payments
+                .map((payment) => PaymentHistoryCard(payment: payment))
+                .toList(growable: false),
+          ),
       ],
+    );
+  }
+}
+
+class _PaymentsLoadingState extends StatelessWidget {
+  const _PaymentsLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(color: Color(0xFF16A34A)),
+    );
+  }
+}
+
+class _PaymentsErrorState extends StatelessWidget {
+  const _PaymentsErrorState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              color: Color(0xFF94A3B8),
+              size: 42,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load payments',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please try again in a moment.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      ),
     );
   }
 }

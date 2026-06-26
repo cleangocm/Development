@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
-enum PaymentStatus { paid, pending, processing, failed, refunded }
+import 'package:ultrawash/core/cleango/models/payment.dart';
+import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_method_card.dart';
 
 extension PaymentStatusStyle on PaymentStatus {
   String get label => switch (this) {
@@ -54,20 +54,9 @@ class PaymentStatusBadge extends StatelessWidget {
 }
 
 class PaymentHistoryCard extends StatelessWidget {
-  const PaymentHistoryCard({
-    required this.transactionId,
-    required this.date,
-    required this.amount,
-    required this.method,
-    required this.status,
-    super.key,
-  });
+  const PaymentHistoryCard({required this.payment, super.key});
 
-  final String transactionId;
-  final String date;
-  final String amount;
-  final String method;
-  final PaymentStatus status;
+  final Payment payment;
 
   @override
   Widget build(BuildContext context) {
@@ -79,22 +68,22 @@ class PaymentHistoryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  transactionId,
+                  payment.transactionReference ?? payment.id,
                   style: const TextStyle(
                     color: Color(0xFF0F172A),
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              PaymentStatusBadge(status: status),
+              PaymentStatusBadge(status: payment.status),
             ],
           ),
           const SizedBox(height: 16),
-          _PaymentDetail(label: 'Date', value: date),
+          _PaymentDetail(label: 'Date', value: _dateLabel(payment.paidAt)),
           const SizedBox(height: 8),
-          _PaymentDetail(label: 'Amount', value: amount),
+          _PaymentDetail(label: 'Amount', value: _formatXaf(payment.amountXaf)),
           const SizedBox(height: 8),
-          _PaymentDetail(label: 'Method', value: method),
+          _PaymentDetail(label: 'Method', value: payment.method.label),
           const SizedBox(height: 18),
           OutlinedButton.icon(
             onPressed: () {},
@@ -148,4 +137,31 @@ class _PaymentDetail extends StatelessWidget {
       ],
     );
   }
+}
+
+String _dateLabel(DateTime? date) {
+  if (date == null) return 'Pending';
+  return '${date.day} ${_monthName(date.month)} ${date.year}';
+}
+
+String _formatXaf(int amount) {
+  return '${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')} XAF';
+}
+
+String _monthName(int month) {
+  const names = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return names[month - 1];
 }

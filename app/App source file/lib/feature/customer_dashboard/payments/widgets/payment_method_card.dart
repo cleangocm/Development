@@ -1,35 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/payment.dart';
 
 class PaymentMethodCard extends StatelessWidget {
-  const PaymentMethodCard({super.key});
+  const PaymentMethodCard({required this.methods, super.key});
 
-  static const _methods = [
-    _PaymentMethod(
-      name: 'MTN Mobile Money',
-      icon: Icons.phone_android,
-      color: Color(0xFFF59E0B),
-    ),
-    _PaymentMethod(
-      name: 'Orange Money',
-      icon: Icons.smartphone,
-      color: Color(0xFFF97316),
-    ),
-    _PaymentMethod(
-      name: 'Stripe / Credit Card',
-      icon: Icons.credit_card,
-      color: Color(0xFF635BFF),
-    ),
-    _PaymentMethod(
-      name: 'Bank Transfer',
-      icon: Icons.account_balance_outlined,
-      color: Color(0xFF1073E6),
-    ),
-    _PaymentMethod(
-      name: 'Cash on Collection',
-      icon: Icons.payments_outlined,
-      color: Color(0xFF16A34A),
-    ),
-  ];
+  final List<PaymentMethod> methods;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +16,7 @@ class PaymentMethodCard extends StatelessWidget {
           spacing: 12,
           runSpacing: 12,
           children: [
-            for (final method in _methods)
+            for (final method in methods)
               SizedBox(
                 width: width,
                 child: Container(
@@ -65,7 +40,7 @@ class PaymentMethodCard extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          method.name,
+                          method.label,
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
@@ -80,14 +55,28 @@ class PaymentMethodCard extends StatelessWidget {
   }
 }
 
-class _PaymentMethod {
-  const _PaymentMethod({
-    required this.name,
-    required this.icon,
-    required this.color,
-  });
+extension PaymentMethodDisplay on PaymentMethod {
+  String get label => switch (this) {
+    PaymentMethod.mtnMobileMoney => 'MTN Mobile Money',
+    PaymentMethod.orangeMoney => 'Orange Money',
+    PaymentMethod.stripeCard => 'Stripe / Credit Card',
+    PaymentMethod.bankTransfer => 'Bank Transfer',
+    PaymentMethod.cashOnCollection => 'Cash on Collection',
+  };
 
-  final String name;
-  final IconData icon;
-  final Color color;
+  IconData get icon => switch (this) {
+    PaymentMethod.mtnMobileMoney => Icons.phone_android,
+    PaymentMethod.orangeMoney => Icons.smartphone,
+    PaymentMethod.stripeCard => Icons.credit_card,
+    PaymentMethod.bankTransfer => Icons.account_balance_outlined,
+    PaymentMethod.cashOnCollection => Icons.payments_outlined,
+  };
+
+  Color get color => switch (this) {
+    PaymentMethod.mtnMobileMoney => const Color(0xFFF59E0B),
+    PaymentMethod.orangeMoney => const Color(0xFFF97316),
+    PaymentMethod.stripeCard => const Color(0xFF635BFF),
+    PaymentMethod.bankTransfer => const Color(0xFF1073E6),
+    PaymentMethod.cashOnCollection => const Color(0xFF16A34A),
+  };
 }

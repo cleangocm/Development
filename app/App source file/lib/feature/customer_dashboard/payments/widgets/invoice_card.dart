@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/payment.dart';
 import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_history_card.dart';
 
 class InvoiceCard extends StatelessWidget {
-  const InvoiceCard({
-    required this.invoiceNumber,
-    required this.billingPeriod,
-    required this.amount,
-    required this.status,
-    super.key,
-  });
+  const InvoiceCard({required this.payment, super.key});
 
-  final String invoiceNumber;
-  final String billingPeriod;
-  final String amount;
-  final PaymentStatus status;
+  final Payment payment;
 
   @override
   Widget build(BuildContext context) {
@@ -33,17 +25,17 @@ class InvoiceCard extends StatelessWidget {
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  invoiceNumber,
+                  payment.invoiceNumber,
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
-              PaymentStatusBadge(status: status),
+              PaymentStatusBadge(status: payment.status),
             ],
           ),
           const SizedBox(height: 16),
-          _InvoiceDetail(label: 'Billing period', value: billingPeriod),
+          _InvoiceDetail(label: 'Billing period', value: payment.billingPeriod),
           const SizedBox(height: 8),
-          _InvoiceDetail(label: 'Amount', value: amount),
+          _InvoiceDetail(label: 'Amount', value: _formatXaf(payment.amountXaf)),
           const SizedBox(height: 18),
           OutlinedButton.icon(
             onPressed: () {},
@@ -72,4 +64,8 @@ class _InvoiceDetail extends StatelessWidget {
       ],
     );
   }
+}
+
+String _formatXaf(int amount) {
+  return '${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')} XAF';
 }

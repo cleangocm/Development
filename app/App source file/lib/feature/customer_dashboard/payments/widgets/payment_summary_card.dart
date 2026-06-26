@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 
 class PaymentSummaryCard extends StatelessWidget {
   const PaymentSummaryCard({
-    required this.outstandingBalance,
-    required this.paidThisMonth,
+    required this.outstandingBalanceXaf,
+    required this.paidThisMonthXaf,
     required this.subscriptionStatus,
     super.key,
   });
 
-  final String outstandingBalance;
-  final String paidThisMonth;
+  final int outstandingBalanceXaf;
+  final int paidThisMonthXaf;
   final String subscriptionStatus;
 
   @override
@@ -48,9 +48,12 @@ class PaymentSummaryCard extends StatelessWidget {
             children: [
               _SummaryMetric(
                 label: 'Outstanding balance',
-                value: outstandingBalance,
+                value: _formatXaf(outstandingBalanceXaf),
               ),
-              _SummaryMetric(label: 'Paid this month', value: paidThisMonth),
+              _SummaryMetric(
+                label: 'Paid this month',
+                value: _formatXaf(paidThisMonthXaf),
+              ),
               _SummaryMetric(
                 label: 'Subscription',
                 value: subscriptionStatus,
@@ -106,4 +109,8 @@ class _SummaryMetric extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatXaf(int amount) {
+  return '${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')} XAF';
 }
