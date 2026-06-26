@@ -1,28 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/controller/collections_tab_controller.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_history_card.dart';
-import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_status_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_timeline_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/empty_collections_state.dart';
 
-class CollectionsTab extends StatelessWidget {
-  const CollectionsTab({super.key});
+class CollectionsTab extends StatefulWidget {
+  const CollectionsTab({super.key, CollectionsTabController? controller})
+    : _controller = controller;
 
-  static const _history = [
-    CollectionHistoryCard(
-      date: '20 June 2026',
-      timeWindow: '8:00 AM - 11:00 AM',
-      address: 'Bastos, Yaounde',
-      wasteType: 'Household waste',
-      status: CollectionStatus.completed,
-    ),
-    CollectionHistoryCard(
-      date: '13 June 2026',
-      timeWindow: '1:00 PM - 4:00 PM',
-      address: 'Bastos, Yaounde',
-      wasteType: 'Recyclable waste',
-      status: CollectionStatus.missed,
-    ),
-  ];
+  final CollectionsTabController? _controller;
+
+  @override
+  State<CollectionsTab> createState() => _CollectionsTabState();
+}
+
+class _CollectionsTabState extends State<CollectionsTab> {
+  late final CollectionsTabController _controller =
+      widget._controller ?? CollectionsTabController.mock();
+  late Future<CollectionsTabViewData> _collectionsData = _controller.load();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<CollectionsTabViewData>(
+      future: _collectionsData,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _CollectionsLoadingState();
+        }
+
+        if (snapshot.hasError) {
+          return _CollectionsErrorState(onRetry: _retry);
+        }
+
+        return _CollectionsContent(
+          data: snapshot.data ?? CollectionsTabViewData.empty(),
+        );
+      },
+    );
+  }
+
+  void _retry() {
+    setState(() {
+      _collectionsData = _controller.load();
+    });
+  }
+}
+
+class _CollectionsContent extends StatelessWidget {
+  const _CollectionsContent({required this.data});
+
+  final CollectionsTabViewData data;
 
   @override
   Widget build(BuildContext context) {
@@ -45,17 +72,21 @@ class CollectionsTab extends StatelessWidget {
         const SizedBox(height: 24),
         const _SectionTitle(title: 'Upcoming collections'),
         const SizedBox(height: 12),
-        const CollectionTimelineCard(
-          date: '27 June 2026',
-          timeWindow: '8:00 AM - 11:00 AM',
-          address: 'Bastos, Yaounde',
-          wasteType: 'Household waste',
-          status: CollectionStatus.collectorAssigned,
-        ),
+        if (data.upcomingCollections.isEmpty)
+          const EmptyCollectionsState()
+        else
+          Column(
+            children: [
+              for (final collection in data.upcomingCollections) ...[
+                CollectionTimelineCard(collection: collection),
+                const SizedBox(height: 14),
+              ],
+            ],
+          ),
         const SizedBox(height: 28),
         const _SectionTitle(title: 'Collection history'),
         const SizedBox(height: 12),
-        if (_history.isEmpty)
+        if (data.collectionHistory.isEmpty)
           const EmptyCollectionsState()
         else
           LayoutBuilder(
@@ -64,25 +95,78 @@ class CollectionsTab extends StatelessWidget {
               if (!twoColumns) {
                 return Column(
                   children: [
-                    for (final card in _history) ...[
-                      card,
+                    for (final collection in data.collectionHistory) ...[
+                      CollectionHistoryCard(collection: collection),
                       const SizedBox(height: 14),
                     ],
                   ],
                 );
               }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _history[0]),
-                  const SizedBox(width: 16),
-                  Expanded(child: _history[1]),
-                ],
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: data.collectionHistory
+                    .map(
+                      (collection) => SizedBox(
+                        width: (constraints.maxWidth - 16) / 2,
+                        child: CollectionHistoryCard(collection: collection),
+                      ),
+                    )
+                    .toList(growable: false),
               );
             },
           ),
       ],
+    );
+  }
+}
+
+class _CollectionsLoadingState extends StatelessWidget {
+  const _CollectionsLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(color: Color(0xFF16A34A)),
+    );
+  }
+}
+
+class _CollectionsErrorState extends StatelessWidget {
+  const _CollectionsErrorState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              color: Color(0xFF94A3B8),
+              size: 42,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load collections',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please try again in a moment.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      ),
     );
   }
 }

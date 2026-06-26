@@ -1,21 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/collection.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_status_card.dart';
 
 class CollectionTimelineCard extends StatelessWidget {
-  const CollectionTimelineCard({
-    required this.date,
-    required this.timeWindow,
-    required this.address,
-    required this.wasteType,
-    required this.status,
-    super.key,
-  });
+  const CollectionTimelineCard({required this.collection, super.key});
 
-  final String date;
-  final String timeWindow;
-  final String address;
-  final String wasteType;
-  final CollectionStatus status;
+  final WasteCollection collection;
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +42,7 @@ class CollectionTimelineCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  date,
+                  _dateLabel(collection.scheduledDate),
                   style: const TextStyle(
                     color: Color(0xFF0F172A),
                     fontSize: 19,
@@ -60,7 +50,7 @@ class CollectionTimelineCard extends StatelessWidget {
                   ),
                 ),
               ),
-              CollectionStatusCard(status: status),
+              CollectionStatusCard(status: collection.status),
             ],
           ),
           const SizedBox(height: 18),
@@ -68,16 +58,22 @@ class CollectionTimelineCard extends StatelessWidget {
             spacing: 20,
             runSpacing: 12,
             children: [
-              _CollectionDetail(icon: Icons.schedule, text: timeWindow),
+              _CollectionDetail(
+                icon: Icons.schedule,
+                text: collection.timeWindow,
+              ),
               _CollectionDetail(
                 icon: Icons.location_on_outlined,
-                text: address,
+                text: collection.address.formattedAddress,
               ),
-              _CollectionDetail(icon: Icons.delete_outline, text: wasteType),
+              _CollectionDetail(
+                icon: Icons.delete_outline,
+                text: _wasteTypeLabel(collection.wasteType),
+              ),
             ],
           ),
           const SizedBox(height: 22),
-          _CollectionTimeline(currentStatus: status),
+          _CollectionTimeline(currentStatus: collection.status),
           const SizedBox(height: 20),
           Wrap(
             spacing: 10,
@@ -176,4 +172,37 @@ class _CollectionDetail extends StatelessWidget {
       ],
     );
   }
+}
+
+String _dateLabel(DateTime date) {
+  return '${date.day} ${_monthName(date.month)} ${date.year}';
+}
+
+String _wasteTypeLabel(WasteType wasteType) {
+  return switch (wasteType) {
+    WasteType.household => 'Household waste',
+    WasteType.recyclable => 'Recyclable waste',
+    WasteType.organic => 'Organic waste',
+    WasteType.commercial => 'Commercial waste',
+    WasteType.medical => 'Medical waste',
+    WasteType.bulky => 'Bulky waste',
+  };
+}
+
+String _monthName(int month) {
+  const names = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return names[month - 1];
 }
