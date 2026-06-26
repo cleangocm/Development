@@ -1,90 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/notification.dart';
 
-enum NotificationType {
-  pickupReminder,
-  collectorAssigned,
-  pickupCompleted,
-  paymentReminder,
-  paymentConfirmed,
-  subscriptionRenewal,
-  serviceAreaUpdate,
-}
-
-extension NotificationTypeStyle on NotificationType {
+extension NotificationTypeStyle on CleanGoNotificationType {
   String get label => switch (this) {
-    NotificationType.pickupReminder => 'Pickup reminder',
-    NotificationType.collectorAssigned => 'Collector assigned',
-    NotificationType.pickupCompleted => 'Pickup completed',
-    NotificationType.paymentReminder => 'Payment reminder',
-    NotificationType.paymentConfirmed => 'Payment confirmed',
-    NotificationType.subscriptionRenewal => 'Subscription renewal',
-    NotificationType.serviceAreaUpdate => 'Service area update',
+    CleanGoNotificationType.pickupReminder => 'Pickup reminder',
+    CleanGoNotificationType.collectorAssigned => 'Collector assigned',
+    CleanGoNotificationType.pickupCompleted => 'Pickup completed',
+    CleanGoNotificationType.paymentReminder => 'Payment reminder',
+    CleanGoNotificationType.paymentConfirmed => 'Payment confirmed',
+    CleanGoNotificationType.subscriptionRenewal => 'Subscription renewal',
+    CleanGoNotificationType.serviceAreaUpdate => 'Service area update',
   };
 
   IconData get icon => switch (this) {
-    NotificationType.pickupReminder => Icons.event_outlined,
-    NotificationType.collectorAssigned => Icons.local_shipping_outlined,
-    NotificationType.pickupCompleted => Icons.check_circle_outline,
-    NotificationType.paymentReminder => Icons.account_balance_wallet_outlined,
-    NotificationType.paymentConfirmed => Icons.receipt_long_outlined,
-    NotificationType.subscriptionRenewal => Icons.autorenew,
-    NotificationType.serviceAreaUpdate => Icons.location_city_outlined,
+    CleanGoNotificationType.pickupReminder => Icons.event_outlined,
+    CleanGoNotificationType.collectorAssigned => Icons.local_shipping_outlined,
+    CleanGoNotificationType.pickupCompleted => Icons.check_circle_outline,
+    CleanGoNotificationType.paymentReminder =>
+      Icons.account_balance_wallet_outlined,
+    CleanGoNotificationType.paymentConfirmed => Icons.receipt_long_outlined,
+    CleanGoNotificationType.subscriptionRenewal => Icons.autorenew,
+    CleanGoNotificationType.serviceAreaUpdate => Icons.location_city_outlined,
   };
 
   Color get color => switch (this) {
-    NotificationType.pickupReminder => const Color(0xFF1073E6),
-    NotificationType.collectorAssigned => const Color(0xFF6D28D9),
-    NotificationType.pickupCompleted => const Color(0xFF16A34A),
-    NotificationType.paymentReminder => const Color(0xFFF59E0B),
-    NotificationType.paymentConfirmed => const Color(0xFF15803D),
-    NotificationType.subscriptionRenewal => const Color(0xFF0F766E),
-    NotificationType.serviceAreaUpdate => const Color(0xFF475569),
+    CleanGoNotificationType.pickupReminder => const Color(0xFF1073E6),
+    CleanGoNotificationType.collectorAssigned => const Color(0xFF6D28D9),
+    CleanGoNotificationType.pickupCompleted => const Color(0xFF16A34A),
+    CleanGoNotificationType.paymentReminder => const Color(0xFFF59E0B),
+    CleanGoNotificationType.paymentConfirmed => const Color(0xFF15803D),
+    CleanGoNotificationType.subscriptionRenewal => const Color(0xFF0F766E),
+    CleanGoNotificationType.serviceAreaUpdate => const Color(0xFF475569),
   };
 
   bool get isCollection => switch (this) {
-    NotificationType.pickupReminder ||
-    NotificationType.collectorAssigned ||
-    NotificationType.pickupCompleted => true,
+    CleanGoNotificationType.pickupReminder ||
+    CleanGoNotificationType.collectorAssigned ||
+    CleanGoNotificationType.pickupCompleted => true,
     _ => false,
   };
 
   bool get isPayment => switch (this) {
-    NotificationType.paymentReminder ||
-    NotificationType.paymentConfirmed ||
-    NotificationType.subscriptionRenewal => true,
+    CleanGoNotificationType.paymentReminder ||
+    CleanGoNotificationType.paymentConfirmed ||
+    CleanGoNotificationType.subscriptionRenewal => true,
     _ => false,
   };
 
-  bool get isSystem => this == NotificationType.serviceAreaUpdate;
+  bool get isSystem => this == CleanGoNotificationType.serviceAreaUpdate;
 }
 
 class NotificationCard extends StatelessWidget {
   const NotificationCard({
-    required this.title,
-    required this.message,
-    required this.type,
-    required this.timestamp,
-    required this.isRead,
-    this.actionLabel,
+    required this.notification,
+    this.onMarkAsRead,
+    this.onAction,
     super.key,
   });
 
-  final String title;
-  final String message;
-  final NotificationType type;
-  final String timestamp;
-  final bool isRead;
-  final String? actionLabel;
+  final CleanGoNotification notification;
+  final VoidCallback? onMarkAsRead;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
+    final type = notification.type;
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        color: isRead ? Colors.white : const Color(0xFFF0F7FF),
+        color: notification.isRead ? Colors.white : const Color(0xFFF0F7FF),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFFBFDBFE),
+          color: notification.isRead
+              ? const Color(0xFFE2E8F0)
+              : const Color(0xFFBFDBFE),
         ),
       ),
       child: Column(
@@ -110,7 +99,7 @@ class NotificationCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            title,
+                            notification.title,
                             style: const TextStyle(
                               color: Color(0xFF0F172A),
                               fontSize: 16,
@@ -118,7 +107,7 @@ class NotificationCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (!isRead)
+                        if (!notification.isRead)
                           const CircleAvatar(
                             radius: 4,
                             backgroundColor: Color(0xFF1073E6),
@@ -140,10 +129,13 @@ class NotificationCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 13),
-          Text(message, style: const TextStyle(color: Color(0xFF475569))),
+          Text(
+            notification.message,
+            style: const TextStyle(color: Color(0xFF475569)),
+          ),
           const SizedBox(height: 12),
           Text(
-            timestamp,
+            _relativeTimestamp(notification.createdAt),
             style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
           ),
           const SizedBox(height: 14),
@@ -151,18 +143,30 @@ class NotificationCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 8,
             children: [
-              if (!isRead)
+              if (!notification.isRead)
                 TextButton.icon(
-                  onPressed: () {},
+                  onPressed: onMarkAsRead,
                   icon: const Icon(Icons.done, size: 18),
                   label: const Text('Mark as read'),
                 ),
-              if (actionLabel != null)
-                OutlinedButton(onPressed: () {}, child: Text(actionLabel!)),
+              if (notification.actionLabel != null)
+                OutlinedButton(
+                  onPressed: onAction,
+                  child: Text(notification.actionLabel!),
+                ),
             ],
           ),
         ],
       ),
     );
   }
+}
+
+String _relativeTimestamp(DateTime createdAt) {
+  final difference = DateTime.now().difference(createdAt);
+  if (difference.inMinutes < 1) return 'Just now';
+  if (difference.inMinutes < 60) return '${difference.inMinutes} minutes ago';
+  if (difference.inHours < 24) return '${difference.inHours} hours ago';
+  if (difference.inDays == 1) return 'Yesterday';
+  return '${difference.inDays} days ago';
 }

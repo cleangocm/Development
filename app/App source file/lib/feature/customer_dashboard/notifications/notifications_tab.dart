@@ -1,75 +1,100 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/feature/customer_dashboard/notifications/controller/notifications_tab_controller.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/empty_notifications_state.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/notification_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/notification_filter_chips.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/notification_summary_card.dart';
 
 class NotificationsTab extends StatefulWidget {
-  const NotificationsTab({super.key});
+  const NotificationsTab({super.key, NotificationsTabController? controller})
+    : _controller = controller;
+
+  final NotificationsTabController? _controller;
 
   @override
   State<NotificationsTab> createState() => _NotificationsTabState();
 }
 
 class _NotificationsTabState extends State<NotificationsTab> {
+  late final NotificationsTabController _controller =
+      widget._controller ?? NotificationsTabController.mock();
+  late Future<NotificationsTabViewData> _notificationsData = _controller.load();
+
   NotificationFilter selectedFilter = NotificationFilter.all;
-
-  static const notifications = [
-    NotificationCard(
-      title: 'Pickup reminder',
-      message: 'Your household waste pickup is scheduled for tomorrow.',
-      type: NotificationType.pickupReminder,
-      timestamp: '10 minutes ago',
-      isRead: false,
-      actionLabel: 'View pickup',
-    ),
-    NotificationCard(
-      title: 'Collector assigned',
-      message: 'A CLEANGO collector has been assigned to your pickup.',
-      type: NotificationType.collectorAssigned,
-      timestamp: '1 hour ago',
-      isRead: false,
-      actionLabel: 'View pickup',
-    ),
-    NotificationCard(
-      title: 'Payment confirmed',
-      message: 'Your Standard Plan payment of 5,000 XAF was successful.',
-      type: NotificationType.paymentConfirmed,
-      timestamp: 'Yesterday',
-      isRead: true,
-      actionLabel: 'View payment',
-    ),
-    NotificationCard(
-      title: 'Subscription renewal',
-      message: 'Your subscription renews on 12 July 2026.',
-      type: NotificationType.subscriptionRenewal,
-      timestamp: '2 days ago',
-      isRead: true,
-    ),
-    NotificationCard(
-      title: 'Service area update',
-      message: 'CLEANGO coverage has expanded within Yaounde.',
-      type: NotificationType.serviceAreaUpdate,
-      timestamp: '5 days ago',
-      isRead: true,
-    ),
-  ];
-
-  List<NotificationCard> get filteredNotifications {
-    return notifications.where((notification) {
-      return switch (selectedFilter) {
-        NotificationFilter.all => true,
-        NotificationFilter.unread => !notification.isRead,
-        NotificationFilter.collections => notification.type.isCollection,
-        NotificationFilter.payments => notification.type.isPayment,
-        NotificationFilter.system => notification.type.isSystem,
-      };
-    }).toList();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final visibleNotifications = filteredNotifications;
+    return FutureBuilder<NotificationsTabViewData>(
+      future: _notificationsData,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _NotificationsLoadingState();
+        }
+
+        if (snapshot.hasError) {
+          return _NotificationsErrorState(onRetry: _reload);
+        }
+
+        return _NotificationsContent(
+          data: snapshot.data ?? NotificationsTabViewData.empty(),
+          selectedFilter: selectedFilter,
+          onFilterSelected: (filter) {
+            setState(() {
+              selectedFilter = filter;
+            });
+          },
+          onMarkAsRead: _markAsRead,
+          onMarkAllAsRead: _markAllAsRead,
+        );
+      },
+    );
+  }
+
+  Future<void> _markAsRead(String notificationId) async {
+    await _controller.markAsRead(notificationId);
+    _reload();
+  }
+
+  Future<void> _markAllAsRead() async {
+    await _controller.markAllAsRead();
+    _reload();
+  }
+
+  void _reload() {
+    setState(() {
+      _notificationsData = _controller.load();
+    });
+  }
+}
+
+class _NotificationsContent extends StatelessWidget {
+  const _NotificationsContent({
+    required this.data,
+    required this.selectedFilter,
+    required this.onFilterSelected,
+    required this.onMarkAsRead,
+    required this.onMarkAllAsRead,
+  });
+
+  final NotificationsTabViewData data;
+  final NotificationFilter selectedFilter;
+  final ValueChanged<NotificationFilter> onFilterSelected;
+  final ValueChanged<String> onMarkAsRead;
+  final VoidCallback onMarkAllAsRead;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleNotifications = data.notifications
+        .where((notification) {
+          return switch (selectedFilter) {
+            NotificationFilter.all => true,
+            NotificationFilter.unread => !notification.isRead,
+            NotificationFilter.collections => notification.type.isCollection,
+            NotificationFilter.payments => notification.type.isPayment,
+            NotificationFilter.system => notification.type.isSystem,
+          };
+        })
+        .toList(growable: false);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
@@ -98,26 +123,22 @@ class _NotificationsTabState extends State<NotificationsTab> {
               ),
             ),
             TextButton.icon(
-              onPressed: () {},
+              onPressed: onMarkAllAsRead,
               icon: const Icon(Icons.done_all, size: 18),
               label: const Text('Mark all as read'),
             ),
           ],
         ),
         const SizedBox(height: 20),
-        const NotificationSummaryCard(
-          unreadCount: 2,
-          totalNotifications: 5,
-          todaysReminders: 1,
+        NotificationSummaryCard(
+          unreadCount: data.unreadCount,
+          totalNotifications: data.totalNotifications,
+          todaysReminders: data.todaysReminders,
         ),
         const SizedBox(height: 22),
         NotificationFilterChips(
           selectedFilter: selectedFilter,
-          onSelected: (filter) {
-            setState(() {
-              selectedFilter = filter;
-            });
-          },
+          onSelected: onFilterSelected,
         ),
         const SizedBox(height: 18),
         if (visibleNotifications.isEmpty)
@@ -130,7 +151,11 @@ class _NotificationsTabState extends State<NotificationsTab> {
                 return Column(
                   children: [
                     for (final notification in visibleNotifications) ...[
-                      notification,
+                      NotificationCard(
+                        notification: notification,
+                        onMarkAsRead: () => onMarkAsRead(notification.id),
+                        onAction: () {},
+                      ),
                       const SizedBox(height: 14),
                     ],
                   ],
@@ -144,13 +169,66 @@ class _NotificationsTabState extends State<NotificationsTab> {
                   for (final notification in visibleNotifications)
                     SizedBox(
                       width: (constraints.maxWidth - 16) / 2,
-                      child: notification,
+                      child: NotificationCard(
+                        notification: notification,
+                        onMarkAsRead: () => onMarkAsRead(notification.id),
+                        onAction: () {},
+                      ),
                     ),
                 ],
               );
             },
           ),
       ],
+    );
+  }
+}
+
+class _NotificationsLoadingState extends StatelessWidget {
+  const _NotificationsLoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(color: Color(0xFF16A34A)),
+    );
+  }
+}
+
+class _NotificationsErrorState extends StatelessWidget {
+  const _NotificationsErrorState({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              color: Color(0xFF94A3B8),
+              size: 42,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Unable to load notifications',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please try again in a moment.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      ),
     );
   }
 }
