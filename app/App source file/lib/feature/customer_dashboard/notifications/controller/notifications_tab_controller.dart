@@ -1,8 +1,7 @@
 import 'package:ultrawash/core/cleango/models/notification.dart';
+import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
-import 'package:ultrawash/core/cleango/services/mock_notification_service.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
-import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class NotificationsTabController {
   NotificationsTabController({
@@ -11,9 +10,10 @@ class NotificationsTabController {
   });
 
   factory NotificationsTabController.mock() {
+    final dependencies = CleanGoServiceLocator.instance.dashboardDependencies;
     return NotificationsTabController(
-      currentCustomerProvider: MockCurrentCustomerProvider(),
-      notificationRepository: MockNotificationService(),
+      currentCustomerProvider: dependencies.currentCustomerProvider,
+      notificationRepository: dependencies.notificationRepository,
     );
   }
 

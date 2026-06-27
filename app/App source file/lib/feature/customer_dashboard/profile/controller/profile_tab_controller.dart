@@ -1,10 +1,9 @@
 import 'package:ultrawash/core/cleango/models/customer.dart';
+import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
-import 'package:ultrawash/core/cleango/services/mock_customer_service.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
-import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class ProfileTabController {
   ProfileTabController({
@@ -14,11 +13,11 @@ class ProfileTabController {
   });
 
   factory ProfileTabController.mock() {
-    final customerService = MockCustomerService();
+    final dependencies = CleanGoServiceLocator.instance.dashboardDependencies;
     return ProfileTabController(
-      currentCustomerProvider: MockCurrentCustomerProvider(),
-      customerRepository: customerService,
-      subscriptionRepository: customerService,
+      currentCustomerProvider: dependencies.currentCustomerProvider,
+      customerRepository: dependencies.customerRepository,
+      subscriptionRepository: dependencies.subscriptionRepository,
     );
   }
 

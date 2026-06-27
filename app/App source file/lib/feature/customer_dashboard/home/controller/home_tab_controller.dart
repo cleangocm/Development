@@ -1,13 +1,11 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
-import 'package:ultrawash/core/cleango/services/mock_collection_service.dart';
-import 'package:ultrawash/core/cleango/services/mock_customer_service.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
-import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class HomeTabController {
   HomeTabController({
@@ -18,12 +16,12 @@ class HomeTabController {
   });
 
   factory HomeTabController.mock() {
-    final customerService = MockCustomerService();
+    final dependencies = CleanGoServiceLocator.instance.dashboardDependencies;
     return HomeTabController(
-      currentCustomerProvider: MockCurrentCustomerProvider(),
-      customerRepository: customerService,
-      subscriptionRepository: customerService,
-      collectionRepository: MockCollectionService(),
+      currentCustomerProvider: dependencies.currentCustomerProvider,
+      customerRepository: dependencies.customerRepository,
+      subscriptionRepository: dependencies.subscriptionRepository,
+      collectionRepository: dependencies.collectionRepository,
     );
   }
 
@@ -259,6 +257,3 @@ class HomeRecentActivityViewData {
   final String dateLabel;
   final IconData icon;
 }
-
-
-

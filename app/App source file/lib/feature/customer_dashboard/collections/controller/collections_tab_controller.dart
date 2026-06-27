@@ -1,8 +1,7 @@
 import 'package:ultrawash/core/cleango/models/collection.dart';
+import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
-import 'package:ultrawash/core/cleango/services/mock_collection_service.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
-import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class CollectionsTabController {
   CollectionsTabController({
@@ -11,9 +10,10 @@ class CollectionsTabController {
   });
 
   factory CollectionsTabController.mock() {
+    final dependencies = CleanGoServiceLocator.instance.dashboardDependencies;
     return CollectionsTabController(
-      currentCustomerProvider: MockCurrentCustomerProvider(),
-      collectionRepository: MockCollectionService(),
+      currentCustomerProvider: dependencies.currentCustomerProvider,
+      collectionRepository: dependencies.collectionRepository,
     );
   }
 

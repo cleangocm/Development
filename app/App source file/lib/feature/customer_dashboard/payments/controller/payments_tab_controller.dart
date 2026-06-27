@@ -1,8 +1,7 @@
 import 'package:ultrawash/core/cleango/models/payment.dart';
+import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
-import 'package:ultrawash/core/cleango/services/mock_payment_service.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
-import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class PaymentsTabController {
   PaymentsTabController({
@@ -11,9 +10,10 @@ class PaymentsTabController {
   });
 
   factory PaymentsTabController.mock() {
+    final dependencies = CleanGoServiceLocator.instance.dashboardDependencies;
     return PaymentsTabController(
-      currentCustomerProvider: MockCurrentCustomerProvider(),
-      paymentRepository: MockPaymentService(),
+      currentCustomerProvider: dependencies.currentCustomerProvider,
+      paymentRepository: dependencies.paymentRepository,
     );
   }
 
