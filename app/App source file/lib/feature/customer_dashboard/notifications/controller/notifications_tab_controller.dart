@@ -1,25 +1,31 @@
 import 'package:ultrawash/core/cleango/models/notification.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/services/mock_notification_service.dart';
+import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class NotificationsTabController {
   NotificationsTabController({
+    required this.currentCustomerProvider,
     required this.notificationRepository,
-    this.customerId = _demoCustomerId,
   });
 
   factory NotificationsTabController.mock() {
     return NotificationsTabController(
+      currentCustomerProvider: MockCurrentCustomerProvider(),
       notificationRepository: MockNotificationService(),
     );
   }
 
-  static const _demoCustomerId = 'customer-demo-001';
-
+  final CurrentCustomerProvider currentCustomerProvider;
   final NotificationRepository notificationRepository;
-  final String customerId;
 
   Future<NotificationsTabViewData> load() async {
+    final customerId = await currentCustomerProvider.getCurrentCustomerId();
+    if (customerId == null || customerId.isEmpty) {
+      return NotificationsTabViewData.empty();
+    }
+
     final notifications = await notificationRepository.getNotifications(
       customerId,
     );
@@ -50,6 +56,8 @@ class NotificationsTabController {
   }
 
   Future<void> markAllAsRead() async {
+    final customerId = await currentCustomerProvider.getCurrentCustomerId();
+    if (customerId == null || customerId.isEmpty) return;
     await notificationRepository.markAllAsRead(customerId);
   }
 

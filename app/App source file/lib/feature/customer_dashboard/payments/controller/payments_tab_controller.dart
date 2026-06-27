@@ -1,23 +1,31 @@
 import 'package:ultrawash/core/cleango/models/payment.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
 import 'package:ultrawash/core/cleango/services/mock_payment_service.dart';
+import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class PaymentsTabController {
   PaymentsTabController({
+    required this.currentCustomerProvider,
     required this.paymentRepository,
-    this.customerId = _demoCustomerId,
   });
 
   factory PaymentsTabController.mock() {
-    return PaymentsTabController(paymentRepository: MockPaymentService());
+    return PaymentsTabController(
+      currentCustomerProvider: MockCurrentCustomerProvider(),
+      paymentRepository: MockPaymentService(),
+    );
   }
 
-  static const _demoCustomerId = 'customer-demo-001';
-
+  final CurrentCustomerProvider currentCustomerProvider;
   final PaymentRepository paymentRepository;
-  final String customerId;
 
   Future<PaymentsTabViewData> load() async {
+    final customerId = await currentCustomerProvider.getCurrentCustomerId();
+    if (customerId == null || customerId.isEmpty) {
+      return PaymentsTabViewData.empty();
+    }
+
     final payments = await paymentRepository.getPayments(customerId);
     final outstandingBalanceXaf = await paymentRepository
         .getOutstandingBalanceXaf(customerId);

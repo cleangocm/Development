@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
@@ -6,9 +6,12 @@ import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
 import 'package:ultrawash/core/cleango/services/mock_collection_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_customer_service.dart';
+import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 
 class HomeTabController {
   HomeTabController({
+    required this.currentCustomerProvider,
     required this.customerRepository,
     required this.subscriptionRepository,
     required this.collectionRepository,
@@ -17,19 +20,28 @@ class HomeTabController {
   factory HomeTabController.mock() {
     final customerService = MockCustomerService();
     return HomeTabController(
+      currentCustomerProvider: MockCurrentCustomerProvider(),
       customerRepository: customerService,
       subscriptionRepository: customerService,
       collectionRepository: MockCollectionService(),
     );
   }
 
+  final CurrentCustomerProvider currentCustomerProvider;
   final CustomerRepository customerRepository;
   final SubscriptionRepository subscriptionRepository;
   final CollectionRepository collectionRepository;
 
   Future<HomeTabViewData> load() async {
-    final customer = await customerRepository.getCurrentCustomer();
-    if (customer == null) return HomeTabViewData.empty();
+    final customerId = await currentCustomerProvider.getCurrentCustomerId();
+    if (customerId == null || customerId.isEmpty) {
+      return HomeTabViewData.empty();
+    }
+
+    final customer = await customerRepository.getCustomerById(customerId);
+    if (customer == null) {
+      return HomeTabViewData.empty();
+    }
 
     final subscription = await subscriptionRepository.getActiveSubscription(
       customer.id,
@@ -247,3 +259,6 @@ class HomeRecentActivityViewData {
   final String dateLabel;
   final IconData icon;
 }
+
+
+
