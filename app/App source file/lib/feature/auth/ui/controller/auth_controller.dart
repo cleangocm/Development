@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:ultrawash/core/service/api_service/api_service.dart';
-import 'package:ultrawash/core/service/session/session.dart';
-import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
+import 'package:ultrawash/core/cleango/session/rest_current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/session_store.dart';
+import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
 import 'package:ultrawash/feature/profile/UI/controller/profile_controller.dart';
 import 'package:ultrawash/feature/order/ui/controller/order_controller.dart';
 import 'package:ultrawash/feature/Chat Token/UI/controller/chat_token_conteroller.dart';
 
 class AuthController extends GetxController {
+  AuthController({SessionStore? sessionStore})
+      : _sessionStore = sessionStore ?? SharedPreferencesSessionStore() {
+    _currentCustomerProvider = RestCurrentCustomerProvider(
+      sessionStore: _sessionStore,
+    );
+  }
+
   final NetworkService _networkService = NetworkService();
-  final SharedPrefs _sharedPrefs = SharedPrefs();
+  final SessionStore _sessionStore;
+  late final RestCurrentCustomerProvider _currentCustomerProvider;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
   );
@@ -54,8 +63,7 @@ class AuthController extends GetxController {
 
       // Clear any existing session token before login
       // so the old Authorization header is NOT sent
-      await _sharedPrefs.clear();
-      Session.clear();
+      await _sessionStore.clear();
       currentUser.value = null;
       _clearAllControllersData();
 
@@ -69,16 +77,7 @@ class AuthController extends GetxController {
 
       if (response.isSuccess && response.responseData != null) {
         final responseData = response.responseData;
-        final token = responseData['token'] as String?;
-        final user = responseData['user'] as Map<String, dynamic>?;
-
-        if (token != null) {
-          await _sharedPrefs.saveToken(token);
-        }
-        if (user != null) {
-          await _sharedPrefs.saveUser(user);
-          currentUser.value = user;
-        }
+        await _saveAuthenticatedSession(responseData);
 
         // Force re-fetch profile with the NEW token
         _forceRefreshProfile();
@@ -124,16 +123,7 @@ class AuthController extends GetxController {
 
       if (response.isSuccess && response.responseData != null) {
         final responseData = response.responseData;
-        final token = responseData['token'] as String?;
-        final user = responseData['user'] as Map<String, dynamic>?;
-
-        if (token != null) {
-          await _sharedPrefs.saveToken(token);
-        }
-        if (user != null) {
-          await _sharedPrefs.saveUser(user);
-          currentUser.value = user;
-        }
+        await _saveAuthenticatedSession(responseData);
 
         _showSuccessSnackbar(responseData['message'] ?? 'Registration successful');
         return true;
@@ -158,8 +148,7 @@ class AuthController extends GetxController {
       errorMessage.value = '';
 
       // Clear old session data before new login
-      await _sharedPrefs.clear();
-      Session.clear();
+      await _sessionStore.clear();
       currentUser.value = null;
       _clearAllControllersData();
 
@@ -197,16 +186,7 @@ class AuthController extends GetxController {
 
       if (response.isSuccess && response.responseData != null) {
         final responseData = response.responseData;
-        final token = responseData['token'] as String?;
-        final user = responseData['user'] as Map<String, dynamic>?;
-
-        if (token != null) {
-          await _sharedPrefs.saveToken(token);
-        }
-        if (user != null) {
-          await _sharedPrefs.saveUser(user);
-          currentUser.value = user;
-        }
+        await _saveAuthenticatedSession(responseData);
 
         // Force re-fetch profile with the NEW token
         _forceRefreshProfile();
@@ -354,8 +334,7 @@ class AuthController extends GetxController {
       );
 
       // Clear local data regardless of API response
-      await _sharedPrefs.clear();
-      Session.clear();
+      await _sessionStore.clear();
       currentUser.value = null;
       _clearAllControllersData();
 
@@ -366,8 +345,7 @@ class AuthController extends GetxController {
       return true;
     } catch (e) {
       // Even if API fails, clear local data
-      await _sharedPrefs.clear();
-      Session.clear();
+      await _sessionStore.clear();
       currentUser.value = null;
       _clearAllControllersData();
       return true;
@@ -377,21 +355,33 @@ class AuthController extends GetxController {
 
   // Check if user is logged in
   Future<bool> isLoggedIn() async {
-    final token = await _sharedPrefs.getToken();
-    if (token != null && token.isNotEmpty) {
-      final user = await _sharedPrefs.getUser();
-      currentUser.value = user;
-      return true;
-    }
-    return false;
+    final loggedIn = await _currentCustomerProvider.isLoggedIn();
+    currentUser.value = loggedIn ? await _sessionStore.readUser() : null;
+    return loggedIn;
   }
 
   // Load current user from storage
   Future<void> loadCurrentUser() async {
-    final user = await _sharedPrefs.getUser();
+    final user = await _sessionStore.readUser();
     currentUser.value = user;
   }
 
+  Future<void> _saveAuthenticatedSession(
+    Map<String, dynamic> responseData,
+  ) async {
+    final accessToken = responseData['token'] as String?;
+    if (accessToken == null || accessToken.isEmpty) return;
+
+    final refreshToken = responseData['refreshToken'] as String?;
+    final user = responseData['user'] as Map<String, dynamic>?;
+    await _sessionStore.saveSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      user: user,
+    );
+    currentUser.value = user;
+    await _currentCustomerProvider.refresh();
+  }
   /// Force re-fetch profile data after a new login
   void _forceRefreshProfile() {
     try {

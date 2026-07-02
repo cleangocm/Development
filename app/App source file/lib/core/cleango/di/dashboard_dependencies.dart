@@ -6,6 +6,9 @@ import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/rest_current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/session_store.dart';
+import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
 
 class DashboardDependencies {
   const DashboardDependencies({
@@ -18,9 +21,30 @@ class DashboardDependencies {
   });
 
   factory DashboardDependencies.mock() {
-    final repositories = RepositoryFactory.mock();
-    return DashboardDependencies(
+    return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: MockCurrentCustomerProvider(),
+    );
+  }
+
+  factory DashboardDependencies.rest({
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: RestCurrentCustomerProvider(
+        sessionStore: sessionStore ?? SharedPreferencesSessionStore(),
+      ),
+      repositoryFactory: repositoryFactory,
+    );
+  }
+
+  factory DashboardDependencies.withCurrentCustomerProvider({
+    required CurrentCustomerProvider currentCustomerProvider,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    final repositories = repositoryFactory ?? RepositoryFactory.mock();
+    return DashboardDependencies(
+      currentCustomerProvider: currentCustomerProvider,
       customerRepository: repositories.customerRepository,
       subscriptionRepository: repositories.subscriptionRepository,
       collectionRepository: repositories.collectionRepository,
