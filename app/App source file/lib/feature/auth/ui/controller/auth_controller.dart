@@ -4,14 +4,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:ultrawash/core/service/api_service/api_service.dart';
 import 'package:ultrawash/core/cleango/session/rest_current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/session_store.dart';
-import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
+import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/feature/profile/UI/controller/profile_controller.dart';
 import 'package:ultrawash/feature/order/ui/controller/order_controller.dart';
 import 'package:ultrawash/feature/Chat Token/UI/controller/chat_token_conteroller.dart';
 
 class AuthController extends GetxController {
   AuthController({SessionStore? sessionStore})
-      : _sessionStore = sessionStore ?? SharedPreferencesSessionStore() {
+      : _sessionStore = sessionStore ?? SecureSessionStore() {
     _currentCustomerProvider = RestCurrentCustomerProvider(
       sessionStore: _sessionStore,
     );

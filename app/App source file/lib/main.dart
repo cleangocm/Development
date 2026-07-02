@@ -3,7 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
 import 'package:ultrawash/Controller_Binding.dart';
-import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
+import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
 
 void main() async {
@@ -17,8 +17,8 @@ void main() async {
   }
 
   // Load token from storage before controllers initialize.
-  final sharedPrefs = SharedPrefs();
-  await sharedPrefs.getToken();
+  final sessionStore = SecureSessionStore();
+  await sessionStore.readAccessToken();
 
   runApp(MyApp());
 }

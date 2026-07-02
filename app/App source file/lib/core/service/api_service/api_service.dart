@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:ultrawash/core/cleango/session/session_store.dart';
-import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
+import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/core/service/network/network_client.dart';
 import 'package:ultrawash/core/service/session/session.dart';
 
@@ -9,7 +9,7 @@ class NetworkService {
       'https://laundry-service-booking-app-backend.onrender.com/api/v1';
 
   NetworkService({SessionStore? sessionStore})
-      : _sessionStore = sessionStore ?? SharedPreferencesSessionStore() {
+    : _sessionStore = sessionStore ?? SecureSessionStore() {
     _refreshClient = Dio(
       BaseOptions(
         baseUrl: _baseUrl,

@@ -7,6 +7,7 @@ import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/rest_current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/core/cleango/session/session_store.dart';
 import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
 
@@ -26,13 +27,22 @@ class DashboardDependencies {
     );
   }
 
+  factory DashboardDependencies.previewSession({
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.rest(
+      sessionStore: SharedPreferencesSessionStore(),
+      repositoryFactory: repositoryFactory,
+    );
+  }
+
   factory DashboardDependencies.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: RestCurrentCustomerProvider(
-        sessionStore: sessionStore ?? SharedPreferencesSessionStore(),
+        sessionStore: sessionStore ?? SecureSessionStore(),
       ),
       repositoryFactory: repositoryFactory,
     );

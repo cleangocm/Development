@@ -11,6 +11,16 @@ class CleanGoServiceLocator {
     );
   }
 
+  factory CleanGoServiceLocator.previewSession({
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return CleanGoServiceLocator._(
+      dashboardDependencies: DashboardDependencies.previewSession(
+        repositoryFactory: repositoryFactory,
+      ),
+    );
+  }
+
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,

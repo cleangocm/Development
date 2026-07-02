@@ -6,6 +6,7 @@
     <application
         android:label="CLEANGO CM"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
         <activity
