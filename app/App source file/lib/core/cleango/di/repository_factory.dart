@@ -3,6 +3,7 @@ import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/rest/rest_customer_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/rest/rest_notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
 import 'package:ultrawash/core/cleango/services/mock_collection_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_customer_service.dart';
@@ -43,6 +44,18 @@ class RepositoryFactory {
     );
   }
 
+  factory RepositoryFactory.restNotification({NetworkService? networkService}) {
+    final mockCustomerService = MockCustomerService();
+    return RepositoryFactory(
+      customerRepository: mockCustomerService,
+      subscriptionRepository: mockCustomerService,
+      collectionRepository: MockCollectionService(),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: RestNotificationRepository(
+        networkService: networkService,
+      ),
+    );
+  }
   final CustomerRepository customerRepository;
   final SubscriptionRepository subscriptionRepository;
   final CollectionRepository collectionRepository;

@@ -37,6 +37,16 @@ class MockNotificationService implements NotificationRepository {
   }
 
   @override
+  Future<int> getUnreadCount(String customerId) async {
+    return _notifications
+        .where(
+          (notification) =>
+              notification.customerId == customerId && !notification.isRead,
+        )
+        .length;
+  }
+
+  @override
   Future<void> markAllAsRead(String customerId) async {
     for (var index = 0; index < _notifications.length; index++) {
       final notification = _notifications[index];
