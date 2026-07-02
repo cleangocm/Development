@@ -1,52 +1,98 @@
-
-
-import 'package:get/get.dart';
+import 'package:dio/dio.dart';
+import 'package:ultrawash/core/cleango/session/session_store.dart';
+import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
 import 'package:ultrawash/core/service/network/network_client.dart';
 import 'package:ultrawash/core/service/session/session.dart';
-import 'package:ultrawash/core/service/shared_preferance/shared_prefarance.dart';
-import 'package:ultrawash/feature/auth/ui/screen/login_screen.dart';
 
 class NetworkService {
-  late final NetworkClient client;
+  static const _baseUrl =
+      'https://laundry-service-booking-app-backend.onrender.com/api/v1';
 
-  NetworkService() {
+  NetworkService({SessionStore? sessionStore})
+      : _sessionStore = sessionStore ?? SharedPreferencesSessionStore() {
+    _refreshClient = Dio(
+      BaseOptions(
+        baseUrl: _baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 20),
+        sendTimeout: const Duration(seconds: 20),
+        responseType: ResponseType.json,
+        validateStatus: (status) =>
+            status != null && status >= 100 && status < 600,
+      ),
+    );
     client = NetworkClient(
-      baseUrl: 'https://laundry-service-booking-app-backend.onrender.com/api/v1',
+      baseUrl: _baseUrl,
       onUnAuthorize: _handleUnauthorized,
+      refreshSession: _refreshSession,
       commonHeaders: _buildHeaders,
     );
   }
 
+  final SessionStore _sessionStore;
+  late final Dio _refreshClient;
+  late final NetworkClient client;
+
+  Future<bool>? _refreshInFlight;
+
   Map<String, String> _buildHeaders() {
-    final h = <String, String>{
+    final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
     };
-    final t = Session.accessToken;        // <- sync from cache
-    if (t != null && t.isNotEmpty) {
-      h['Authorization'] = 'Bearer $t';
+    final token = Session.accessToken;
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
     }
-    return h;
+    return headers;
   }
 
-  void _handleUnauthorized() async {
-    // Don't handle if no token was set (prevents startup race condition)
-    if (Session.accessToken == null || Session.accessToken!.isEmpty) {
-      return;
+  Future<bool> _refreshSession() {
+    final activeRefresh = _refreshInFlight;
+    if (activeRefresh != null) return activeRefresh;
+
+    final refresh = _performRefresh();
+    _refreshInFlight = refresh;
+    return refresh.whenComplete(() {
+      if (identical(_refreshInFlight, refresh)) {
+        _refreshInFlight = null;
+      }
+    });
+  }
+
+  Future<bool> _performRefresh() async {
+    final refreshToken = await _sessionStore.readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      final response = await _refreshClient.post<Map<String, dynamic>>(
+        '/auth/refresh-token',
+        data: {'refreshToken': refreshToken},
+      );
+      final data = response.data;
+      final accessToken = data?['token'] as String?;
+      final rotatedRefreshToken = data?['refreshToken'] as String?;
+
+      if (response.statusCode != 200 ||
+          data?['status'] != 'success' ||
+          accessToken == null ||
+          accessToken.isEmpty ||
+          rotatedRefreshToken == null ||
+          rotatedRefreshToken.isEmpty) {
+        return false;
+      }
+
+      await _sessionStore.saveSession(
+        accessToken: accessToken,
+        refreshToken: rotatedRefreshToken,
+      );
+      return true;
+    } on DioException {
+      return false;
     }
+  }
 
-    // Clear local storage and session
-    final sharedPrefs = SharedPrefs();
-    await sharedPrefs.clear();
-    Session.accessToken = null;
-
-    // Navigate to login screen
-    Get.offAll(() => const LoginScreen());
-
-    Get.snackbar(
-      'Session Expired',
-      'Please login again',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+  Future<void> _handleUnauthorized() async {
+    await _sessionStore.clear();
   }
 }

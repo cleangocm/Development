@@ -1,9 +1,6 @@
 import 'dart:convert';
-import 'dart:ui';
-
 import 'package:logger/logger.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 part 'network_responce.dart';
 
@@ -11,7 +8,10 @@ class NetworkClient {
   final Logger _logger = Logger();
   final String _defaultErrorMessage = 'Something went wrong';
 
-  final VoidCallback onUnAuthorize;
+  static const _sessionRetryKey = 'cleango_session_retry';
+
+  final Future<void> Function() onUnAuthorize;
+  final Future<bool> Function() refreshSession;
   final Map<String, String> Function() commonHeaders;
 
   /// You can inject a preconfigured Dio if you want (for tests or custom baseUrl).
@@ -19,6 +19,7 @@ class NetworkClient {
 
   NetworkClient({
     required this.onUnAuthorize,
+    required this.refreshSession,
     required this.commonHeaders,
     Dio? dio,
     String? baseUrl,
@@ -39,26 +40,90 @@ class NetworkClient {
           followRedirects: false,
         ),
       ) {
-    // Basic interceptors for headers + logging
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        // merge dynamic headers every request
-        final headers = commonHeaders();
-        options.headers.addAll(headers);
-        _logRequest(options);
-        handler.next(options);
-      },
-      onResponse: (response, handler) {
-        _logResponse(response);
-        handler.next(response);
-      },
-      onError: (e, handler) {
-        _logError(e);
-        handler.next(e);
-      },
-    ));
+    // Basic interceptors for headers, session recovery, and logging.
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final headers = commonHeaders();
+          options.headers.addAll(headers);
+          _logRequest(options);
+          handler.next(options);
+        },
+        onResponse: (response, handler) async {
+          _logResponse(response);
+          if (!_shouldRefresh(response.statusCode, response.requestOptions)) {
+            handler.next(response);
+            return;
+          }
+
+          try {
+            final retriedResponse = await _refreshAndRetry(
+              response.requestOptions,
+            );
+            if (retriedResponse == null) {
+              handler.next(response);
+              return;
+            }
+            handler.resolve(retriedResponse);
+          } on DioException catch (error) {
+            handler.reject(error);
+          }
+        },
+        onError: (error, handler) async {
+          _logError(error);
+          if (!_shouldRefresh(
+            error.response?.statusCode,
+            error.requestOptions,
+          )) {
+            handler.next(error);
+            return;
+          }
+
+          try {
+            final retriedResponse = await _refreshAndRetry(
+              error.requestOptions,
+            );
+            if (retriedResponse == null) {
+              handler.next(error);
+              return;
+            }
+            handler.resolve(retriedResponse);
+          } on DioException catch (retryError) {
+            handler.next(retryError);
+          }
+        },
+      ),
+    );
   }
 
+  bool _shouldRefresh(int? statusCode, RequestOptions options) {
+    return statusCode == 401 &&
+        options.extra[_sessionRetryKey] != true &&
+        !options.path.endsWith('/auth/refresh-token');
+  }
+
+  Future<Response<dynamic>?> _refreshAndRetry(
+    RequestOptions requestOptions,
+  ) async {
+    requestOptions.extra[_sessionRetryKey] = true;
+    final refreshed = await refreshSession();
+    if (!refreshed) {
+      await onUnAuthorize();
+      return null;
+    }
+
+    requestOptions.headers.remove('Authorization');
+    requestOptions.headers.addAll(commonHeaders());
+    if (requestOptions.data is FormData) {
+      requestOptions.data = (requestOptions.data as FormData).clone();
+    }
+
+    final response = await _dio.fetch<dynamic>(requestOptions);
+    if (response.statusCode == 401) {
+      await onUnAuthorize();
+    }
+    return response;
+  }
   // -------------------- PUBLIC METHODS --------------------
   Future<NetworkResponse> getRequest(
       String url, {
@@ -233,7 +298,6 @@ class NetworkClient {
     }
 
     if (status == 401) {
-      onUnAuthorize();
       return NetworkResponse(
         isSuccess: false,
         statusCode: status,
@@ -260,8 +324,7 @@ class NetworkClient {
       final dynamic data = _normalizeData(res.data);
 
       if (status == 401) {
-        onUnAuthorize();
-        return NetworkResponse(
+          return NetworkResponse(
           isSuccess: false,
           statusCode: status,
           errorMessage: 'Un-authorize',
