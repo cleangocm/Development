@@ -2,11 +2,13 @@ import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/rest/rest_customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
 import 'package:ultrawash/core/cleango/services/mock_collection_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_customer_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_notification_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_payment_service.dart';
+import 'package:ultrawash/core/service/api_service/api_service.dart';
 
 class RepositoryFactory {
   const RepositoryFactory({
@@ -22,6 +24,19 @@ class RepositoryFactory {
     return RepositoryFactory(
       customerRepository: customerService,
       subscriptionRepository: customerService,
+      collectionRepository: MockCollectionService(),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: MockNotificationService(),
+    );
+  }
+
+  factory RepositoryFactory.restCustomer({NetworkService? networkService}) {
+    final mockCustomerService = MockCustomerService();
+    return RepositoryFactory(
+      customerRepository: RestCustomerRepository(
+        networkService: networkService,
+      ),
+      subscriptionRepository: mockCustomerService,
       collectionRepository: MockCollectionService(),
       paymentRepository: MockPaymentService(),
       notificationRepository: MockNotificationService(),
