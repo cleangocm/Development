@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
@@ -8,6 +9,8 @@ import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _initializeFirebase();
+
   const stripePublishableKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
   if (stripePublishableKey.isNotEmpty) {
     Stripe.publishableKey = stripePublishableKey;
@@ -21,6 +24,19 @@ void main() async {
   await sessionStore.readAccessToken();
 
   runApp(MyApp());
+}
+
+Future<bool> _initializeFirebase() async {
+  try {
+    await Firebase.initializeApp();
+    return true;
+  } on FirebaseException catch (error) {
+    debugPrint('Firebase initialization skipped: ${error.message}');
+    return false;
+  } catch (error) {
+    debugPrint('Firebase initialization skipped: $error');
+    return false;
+  }
 }
 
 class MyApp extends StatelessWidget {
