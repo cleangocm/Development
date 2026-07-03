@@ -1,20 +1,30 @@
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
+import 'package:ultrawash/core/cleango/auth/cleango_auth_service.dart';
 import 'package:ultrawash/core/cleango/auth/firebase_cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/auth/mock_cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/di/dashboard_dependencies.dart';
 import 'package:ultrawash/core/cleango/di/repository_factory.dart';
+import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/core/cleango/session/session_store.dart';
+import 'package:ultrawash/core/cleango/session/shared_preferences_session_store.dart';
 
 class CleanGoServiceLocator {
   CleanGoServiceLocator._({
     required this.authProvider,
     required this.dashboardDependencies,
-  });
+    required this.sessionStore,
+  }) : authService = CleangoAuthService(
+         authProvider: authProvider,
+         sessionStore: sessionStore,
+         currentCustomerProvider: dashboardDependencies.currentCustomerProvider,
+       );
 
   factory CleanGoServiceLocator.mock() {
+    final sessionStore = SharedPreferencesSessionStore();
     return CleanGoServiceLocator._(
       authProvider: MockCleangoAuthProvider(),
       dashboardDependencies: DashboardDependencies.mock(),
+      sessionStore: sessionStore,
     );
   }
 
@@ -22,21 +32,26 @@ class CleanGoServiceLocator {
     CleangoAuthProvider? authProvider,
     DashboardDependencies? dashboardDependencies,
   }) {
+    final sessionStore = SecureSessionStore();
     return CleanGoServiceLocator._(
       authProvider: authProvider ?? FirebaseCleangoAuthProvider(),
       dashboardDependencies:
           dashboardDependencies ?? DashboardDependencies.mock(),
+      sessionStore: sessionStore,
     );
   }
 
   factory CleanGoServiceLocator.previewSession({
     RepositoryFactory? repositoryFactory,
   }) {
+    final sessionStore = SharedPreferencesSessionStore();
     return CleanGoServiceLocator._(
       authProvider: MockCleangoAuthProvider(),
-      dashboardDependencies: DashboardDependencies.previewSession(
+      dashboardDependencies: DashboardDependencies.rest(
+        sessionStore: sessionStore,
         repositoryFactory: repositoryFactory,
       ),
+      sessionStore: sessionStore,
     );
   }
 
@@ -44,12 +59,14 @@ class CleanGoServiceLocator {
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
   }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
     return CleanGoServiceLocator._(
       authProvider: MockCleangoAuthProvider(),
       dashboardDependencies: DashboardDependencies.rest(
-        sessionStore: sessionStore,
+        sessionStore: resolvedSessionStore,
         repositoryFactory: repositoryFactory,
       ),
+      sessionStore: resolvedSessionStore,
     );
   }
 
@@ -60,13 +77,17 @@ class CleanGoServiceLocator {
   static void configure(
     DashboardDependencies dashboardDependencies, {
     CleangoAuthProvider? authProvider,
+    SessionStore? sessionStore,
   }) {
     _instance = CleanGoServiceLocator._(
       authProvider: authProvider ?? _instance.authProvider,
       dashboardDependencies: dashboardDependencies,
+      sessionStore: sessionStore ?? _instance.sessionStore,
     );
   }
 
   final CleangoAuthProvider authProvider;
+  final CleangoAuthService authService;
   final DashboardDependencies dashboardDependencies;
+  final SessionStore sessionStore;
 }
