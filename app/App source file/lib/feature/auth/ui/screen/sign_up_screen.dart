@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:ultrawash/core/cleango/auth/cleango_auth_failure.dart';
+import 'package:ultrawash/core/cleango/auth/cleango_auth_service.dart';
+import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/app/resource.dart';
 import 'package:ultrawash/app/widget_button.dart';
 import 'package:ultrawash/app/winput_text.dart';
 import 'package:ultrawash/app/wtext.dart';
-import 'package:ultrawash/feature/auth/ui/controller/auth_controller.dart';
 import 'package:ultrawash/feature/auth/ui/screen/login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -21,8 +23,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
-  final AuthController _authController = Get.find<AuthController>();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+  final CleangoAuthService _authService =
+      CleanGoServiceLocator.instance.authService;
+  bool _isLoading = false;
   bool _agreeToTerms = false;
 
   @override
@@ -99,22 +104,52 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+    final fullName =
+        '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
 
-    final success = await _authController.register(
+    setState(() => _isLoading = true);
+    final result = await _authService.registerWithEmailPassword(
       name: fullName,
       email: _emailController.text.trim(),
       phone: _phoneController.text.trim(),
       password: _passwordController.text,
       confirmPassword: _confirmPasswordController.text,
     );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
 
-    if (success) {
-      // Clear the token so user needs to login after registration
-      await _authController.logout();
-      // Navigate to login screen
+    if (result.isSuccess) {
+      _showSuccessSnackbar('Registration successful');
+      // Clear the token so user needs to login after registration.
+      await _authService.signOut();
+      if (!mounted) return;
+      // Navigate to login screen.
       Get.offAll(() => const LoginScreen());
+      return;
     }
+
+    _showAuthError(result.failure);
+  }
+
+  void _showAuthError(CleangoAuthFailure? failure) {
+    Get.snackbar(
+      'Error',
+      failure?.message ?? 'Authentication failed',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    Get.snackbar(
+      'Success',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
   }
 
   @override
@@ -176,10 +211,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             size: 18.sp,
                           ),
                           SizedBox(width: 4.w),
-                          WText(
-                            text: 'Back',
-                            color: R.color.charcoalNavy,
-                          ),
+                          WText(text: 'Back', color: R.color.charcoalNavy),
                         ],
                       ),
                     ),
@@ -190,7 +222,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     top: 140.h,
                     child: Row(
                       children: [
-
                         // Sign Up Tab (Active)
                         Container(
                           padding: EdgeInsets.only(bottom: 8.h),
@@ -206,7 +237,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             text: 'Sign Up',
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w500,
-                            color:  R.color.white,
+                            color: R.color.white,
                           ),
                         ),
                       ],
@@ -307,15 +338,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                   SizedBox(height: 30.h),
                   // Sign Up Button
-                  Obx(() => WButton(
-                    onPressed: _authController.isLoading.value
+                  WButton(
+                    onPressed: _isLoading
                         ? null
                         : () {
                             _handleSignUp();
                           },
                     label: 'Sign Up',
-                    isLoading: _authController.isLoading.value,
-                  )),
+                    isLoading: _isLoading,
+                  ),
                   SizedBox(height: 40.h),
                   // Login Link
                   Column(
@@ -370,4 +401,3 @@ class CurvedBottomClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
-
