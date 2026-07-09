@@ -1,6 +1,7 @@
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_service.dart';
 import 'package:ultrawash/core/cleango/auth/firebase_cleango_auth_provider.dart';
+import 'package:ultrawash/core/cleango/auth/legacy_rest_auth_adapter.dart';
 import 'package:ultrawash/core/cleango/auth/mock_cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/di/dashboard_dependencies.dart';
 import 'package:ultrawash/core/cleango/di/repository_factory.dart';
@@ -15,6 +16,11 @@ class CleanGoServiceLocator {
     required this.sessionStore,
   }) : authService = CleangoAuthService(
          authProvider: authProvider,
+         legacyRestAuthAdapter: LegacyRestAuthAdapter(
+           sessionStore: sessionStore,
+           currentCustomerProvider:
+               dashboardDependencies.currentCustomerProvider,
+         ),
          sessionStore: sessionStore,
          currentCustomerProvider: dashboardDependencies.currentCustomerProvider,
        );
@@ -61,7 +67,7 @@ class CleanGoServiceLocator {
   }) {
     final resolvedSessionStore = sessionStore ?? SecureSessionStore();
     return CleanGoServiceLocator._(
-      authProvider: MockCleangoAuthProvider(),
+      authProvider: MockCleangoAuthProvider(loggedIn: false),
       dashboardDependencies: DashboardDependencies.rest(
         sessionStore: resolvedSessionStore,
         repositoryFactory: repositoryFactory,

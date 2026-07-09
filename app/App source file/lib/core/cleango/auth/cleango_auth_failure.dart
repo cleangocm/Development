@@ -2,6 +2,9 @@ import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 
 enum CleangoAuthFailureCode {
   cancelled,
+  invalidCredentials,
+  validation,
+  unauthorized,
   invalidPhoneNumber,
   invalidSmsCode,
   verificationExpired,
@@ -9,6 +12,7 @@ enum CleangoAuthFailureCode {
   quotaExceeded,
   network,
   unavailable,
+  server,
   unknown,
 }
 
@@ -32,6 +36,14 @@ class CleangoAuthFailure {
       code: CleangoAuthFailureCode.unknown,
       message: 'Authentication could not be completed.',
       cause: error,
+    );
+  }
+
+  factory CleangoAuthFailure.network(String message, {Object? cause}) {
+    return CleangoAuthFailure(
+      code: CleangoAuthFailureCode.network,
+      message: message,
+      cause: cause,
     );
   }
 

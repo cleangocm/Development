@@ -1,23 +1,49 @@
 import 'package:ultrawash/core/cleango/auth/cleango_auth_failure.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_result.dart';
+import 'package:ultrawash/core/cleango/auth/legacy_rest_auth_adapter.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/session_store.dart';
 
 class CleangoAuthService {
   const CleangoAuthService({
     required CleangoAuthProvider authProvider,
+    required LegacyRestAuthAdapter legacyRestAuthAdapter,
     required SessionStore sessionStore,
     CurrentCustomerProvider? currentCustomerProvider,
   }) : _authProvider = authProvider,
+       _legacyRestAuthAdapter = legacyRestAuthAdapter,
        _sessionStore = sessionStore,
        _currentCustomerProvider = currentCustomerProvider;
 
   final CleangoAuthProvider _authProvider;
+  final LegacyRestAuthAdapter _legacyRestAuthAdapter;
   final SessionStore _sessionStore;
   final CurrentCustomerProvider? _currentCustomerProvider;
 
   Stream<bool> get authStateChanges => _authProvider.authStateChanges;
+  Future<CleangoAuthResult<LegacyRestAuthSession>> signInWithEmailPassword(
+    String email,
+    String password,
+  ) {
+    return _legacyRestAuthAdapter.signInWithEmailPassword(email, password);
+  }
+
+  Future<CleangoAuthResult<LegacyRestAuthSession>> registerWithEmailPassword({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    required String confirmPassword,
+  }) {
+    return _legacyRestAuthAdapter.registerWithEmailPassword(
+      name: name,
+      email: email,
+      phone: phone,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+  }
 
   Future<CleangoAuthResult<CleangoAuthUser>> signInWithGoogle() {
     return _guard(_authProvider.signInWithGoogle);
@@ -37,18 +63,20 @@ class CleangoAuthService {
   }
 
   Future<CleangoAuthResult<void>> signOut() async {
+    CleangoAuthFailure? firebaseFailure;
     try {
       await _authProvider.signOut();
-      await _sessionStore.clear();
-      await _currentCustomerProvider?.refresh();
-      return const CleangoAuthResult<void>.success();
     } on CleangoAuthException catch (error) {
-      return CleangoAuthResult<void>.failure(
-        CleangoAuthFailure.fromException(error),
-      );
+      firebaseFailure = CleangoAuthFailure.fromException(error);
     } catch (error) {
-      return CleangoAuthResult<void>.failure(CleangoAuthFailure.unknown(error));
+      firebaseFailure = CleangoAuthFailure.unknown(error);
     }
+
+    final legacyResult = await _legacyRestAuthAdapter.signOutLegacy();
+    if (firebaseFailure != null) {
+      return CleangoAuthResult<void>.failure(firebaseFailure);
+    }
+    return legacyResult;
   }
 
   Future<CleangoAuthResult<String?>> getFirebaseIdToken() {
