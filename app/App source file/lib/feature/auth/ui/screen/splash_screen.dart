@@ -3,7 +3,7 @@ import 'package:get/get.dart';
 import 'package:ultrawash/app/assets.dart';
 import 'package:ultrawash/feature/auth/ui/controller/auth_controller.dart';
 import 'package:ultrawash/feature/auth/ui/screen/splash_find_screen.dart';
-import 'package:ultrawash/feature/bottomNavigation.dart';
+import 'package:ultrawash/feature/customer_dashboard/customer_dashboard_shell.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -28,8 +28,8 @@ class _SplashScreenState extends State<SplashScreen> {
     final isLoggedIn = await _authController.isLoggedIn();
 
     if (isLoggedIn) {
-      // User is logged in, go to home
-      Get.offAll(() => BottomNavigation());
+      // User is logged in, go to CLEANGO customer dashboard
+      Get.offAll(() => const CleanGoCustomerDashboardShell());
     } else {
       // User is not logged in, go to splash find screen
       Get.off(() => const SplashFindScreen());
@@ -52,4 +52,3 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-

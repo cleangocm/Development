@@ -12,7 +12,7 @@ import 'package:ultrawash/app/winput_text.dart';
 import 'package:ultrawash/app/wtext.dart';
 import 'package:ultrawash/feature/auth/ui/screen/forgot_password_screen.dart';
 import 'package:ultrawash/feature/auth/ui/screen/sign_up_screen.dart';
-import 'package:ultrawash/feature/bottomNavigation.dart';
+import 'package:ultrawash/feature/customer_dashboard/customer_dashboard_shell.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result.isSuccess) {
       _showSuccessSnackbar('Login successful');
-      Get.offAll(() => BottomNavigation());
+      Get.offAll(() => const CleanGoCustomerDashboardShell());
       return;
     }
 
@@ -89,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result.isSuccess) {
       _showSuccessSnackbar('Google login successful');
-      Get.offAll(() => BottomNavigation());
+      Get.offAll(() => const CleanGoCustomerDashboardShell());
       return;
     }
 
