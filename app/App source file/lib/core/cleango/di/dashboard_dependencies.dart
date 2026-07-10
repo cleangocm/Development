@@ -36,6 +36,17 @@ class DashboardDependencies {
     );
   }
 
+  factory DashboardDependencies.restHybrid({
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: RestCurrentCustomerProvider(
+        sessionStore: sessionStore ?? SecureSessionStore(),
+      ),
+      repositoryFactory: repositoryFactory ?? RepositoryFactory.restHybrid(),
+    );
+  }
   factory DashboardDependencies.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,

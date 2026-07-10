@@ -32,6 +32,24 @@ class RepositoryFactory {
     );
   }
 
+  factory RepositoryFactory.restHybrid({NetworkService? networkService}) {
+    final resolvedNetworkService = networkService ?? NetworkService();
+    final mockCustomerService = MockCustomerService();
+    return RepositoryFactory(
+      customerRepository: RestCustomerRepository(
+        networkService: resolvedNetworkService,
+      ),
+      subscriptionRepository: mockCustomerService,
+      collectionRepository: RestCollectionRepository(
+        networkService: resolvedNetworkService,
+      ),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: RestNotificationRepository(
+        networkService: resolvedNetworkService,
+      ),
+    );
+  }
+
   factory RepositoryFactory.restCustomer({NetworkService? networkService}) {
     final mockCustomerService = MockCustomerService();
     return RepositoryFactory(

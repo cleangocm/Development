@@ -61,6 +61,22 @@ class CleanGoServiceLocator {
     );
   }
 
+  factory CleanGoServiceLocator.restHybrid({
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
+    return CleanGoServiceLocator._(
+      authProvider: authProvider ?? FirebaseCleangoAuthProvider(),
+      dashboardDependencies: DashboardDependencies.restHybrid(
+        sessionStore: resolvedSessionStore,
+        repositoryFactory: repositoryFactory,
+      ),
+      sessionStore: resolvedSessionStore,
+    );
+  }
+
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
@@ -77,6 +93,18 @@ class CleanGoServiceLocator {
   }
 
   static CleanGoServiceLocator _instance = CleanGoServiceLocator.mock();
+
+  static void useRestHybrid({
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    _instance = CleanGoServiceLocator.restHybrid(
+      sessionStore: sessionStore,
+      repositoryFactory: repositoryFactory,
+      authProvider: authProvider,
+    );
+  }
 
   static CleanGoServiceLocator get instance => _instance;
 
