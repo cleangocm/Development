@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
       splitScreenMode: true,
       builder: (context, child) {
         return GetMaterialApp(
-          initialBinding: ControllerBinding(),
+          initialBinding: CleangoCoreBinding(),
           title: 'CLEANGO CM',
           debugShowCheckedModeBanner: false,
           theme: ThemeData(

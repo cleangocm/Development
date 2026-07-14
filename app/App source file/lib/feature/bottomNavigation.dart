@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:ultrawash/app/assets.dart';
 import 'package:ultrawash/app/resource.dart';
+import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/feature/Add/UI/screen/add_screen.dart';
 import 'package:ultrawash/feature/Chat%20Token/UI/Screen/chat_Token_List_screen.dart';
 import 'package:ultrawash/feature/Home/ui/screen/home_screen.dart';
@@ -24,6 +25,7 @@ class _BottomNavigationState extends State<BottomNavigation> {
   @override
   void initState() {
     super.initState();
+    LegacyLaundryBinding().dependencies();
     controller = Get.put(NavigationController());
 
     if (widget.selectedIndex != null) {
@@ -62,16 +64,18 @@ class _BottomNavigationState extends State<BottomNavigation> {
               children: [
                 Expanded(child: _buildNavItem(Assets.home, "Home", 0, isDark)),
                 Expanded(child: _buildNavItem(Assets.add, "Add", 1, isDark)),
-                Expanded(child: _buildNavItem(Assets.order, "Orders", 2, isDark)),
+                Expanded(
+                  child: _buildNavItem(Assets.order, "Orders", 2, isDark),
+                ),
                 Expanded(child: _buildNavItem(Assets.chat, "Chat", 3, isDark)),
-                Expanded(child: _buildNavItem(Assets.userS, "Profile", 4, isDark)),
+                Expanded(
+                  child: _buildNavItem(Assets.userS, "Profile", 4, isDark),
+                ),
               ],
             ),
           ),
         ),
-        body: Obx(
-          () => controller.screens[controller.selectedIndex.value],
-        ),
+        body: Obx(() => controller.screens[controller.selectedIndex.value]),
       ),
     );
   }
