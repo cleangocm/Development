@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
+import 'package:ultrawash/core/config/api_config.dart';
 import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
 
 void main() async {
@@ -24,6 +25,7 @@ void main() async {
   final sessionStore = SecureSessionStore();
   await sessionStore.readAccessToken();
   CleanGoServiceLocator.useRestHybrid(sessionStore: sessionStore);
+  debugPrint(ApiConfig.startupSummary());
 
   runApp(MyApp());
 }

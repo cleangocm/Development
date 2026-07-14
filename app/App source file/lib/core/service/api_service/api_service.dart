@@ -1,15 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:ultrawash/core/cleango/session/session_store.dart';
 import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
+import 'package:ultrawash/core/config/api_config.dart';
 import 'package:ultrawash/core/service/network/network_client.dart';
 import 'package:ultrawash/core/service/session/session.dart';
 
 class NetworkService {
-  static const _baseUrl =
-      'https://laundry-service-booking-app-backend.onrender.com/api/v1';
-
   NetworkService({SessionStore? sessionStore})
-    : _sessionStore = sessionStore ?? SecureSessionStore() {
+    : _sessionStore = sessionStore ?? SecureSessionStore(),
+      _baseUrl = ApiConfig.apiBaseUrl {
     _refreshClient = Dio(
       BaseOptions(
         baseUrl: _baseUrl,
@@ -30,6 +29,7 @@ class NetworkService {
   }
 
   final SessionStore _sessionStore;
+  final String _baseUrl;
   late final Dio _refreshClient;
   late final NetworkClient client;
 

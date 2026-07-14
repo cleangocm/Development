@@ -7,9 +7,40 @@ Flutter mobile application being adapted for CleanGo customers and waste collect
 ```powershell
 flutter pub get
 flutter run `
+  --dart-define=CLEANGO_ENV=development `
+  --dart-define=CLEANGO_API_BASE_URL=http://10.0.2.2:5000/api/v1 `
   --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_your_key `
   --dart-define=CLEANGO_WEB_APP_URL=http://localhost:3001
 ```
+
+## API environments
+
+The mobile app reads its backend API configuration from Dart defines:
+
+- `CLEANGO_ENV`: `development`, `staging`, or `production`
+- `CLEANGO_API_BASE_URL`: optional explicit API base URL override
+
+If `CLEANGO_API_BASE_URL` is provided, it wins. Otherwise:
+
+- `development` uses `http://10.0.2.2:5000/api/v1`, which points an Android emulator to a backend running on the host machine.
+- `staging` requires `CLEANGO_API_BASE_URL` until a staging backend is created.
+- `production` uses the Render production API only when `CLEANGO_ENV=production` is explicitly supplied.
+
+Example staging run:
+
+```powershell
+flutter run `
+  --dart-define=CLEANGO_ENV=staging `
+  --dart-define=CLEANGO_API_BASE_URL=https://your-staging-host/api/v1
+```
+
+Example staging debug APK:
+
+```powershell
+flutter build apk --debug `
+  --dart-define=CLEANGO_ENV=staging `
+  --dart-define=CLEANGO_API_BASE_URL=https://your-staging-host/api/v1
+``` 
 
 Stripe secret keys belong only in the web/backend environment. The mobile app
 calls the web application's `/api/create-payment-intent` endpoint and never
