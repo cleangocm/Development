@@ -68,6 +68,24 @@ class DashboardDependencies {
           ),
     );
   }
+
+  factory DashboardDependencies.firebaseSubscriptionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: FirebaseCurrentCustomerProvider(
+        firebaseAuth: firebaseAuth,
+      ),
+      repositoryFactory:
+          repositoryFactory ??
+          RepositoryFactory.firebaseSubscriptionHybrid(
+            firestore: firestore,
+            firebaseAuth: firebaseAuth,
+          ),
+    );
+  }
   factory DashboardDependencies.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,

@@ -100,6 +100,28 @@ class CleanGoServiceLocator {
       sessionStore: resolvedSessionStore,
     );
   }
+
+  factory CleanGoServiceLocator.firebaseSubscriptionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
+    final resolvedFirebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+    return CleanGoServiceLocator._(
+      authProvider:
+          authProvider ??
+          FirebaseCleangoAuthProvider(firebaseAuth: resolvedFirebaseAuth),
+      dashboardDependencies: DashboardDependencies.firebaseSubscriptionHybrid(
+        firestore: firestore,
+        firebaseAuth: resolvedFirebaseAuth,
+        repositoryFactory: repositoryFactory,
+      ),
+      sessionStore: resolvedSessionStore,
+    );
+  }
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
@@ -137,6 +159,22 @@ class CleanGoServiceLocator {
     CleangoAuthProvider? authProvider,
   }) {
     _instance = CleanGoServiceLocator.firebaseCustomerHybrid(
+      firestore: firestore,
+      firebaseAuth: firebaseAuth,
+      sessionStore: sessionStore,
+      repositoryFactory: repositoryFactory,
+      authProvider: authProvider,
+    );
+  }
+
+  static void useFirebaseSubscriptionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    _instance = CleanGoServiceLocator.firebaseSubscriptionHybrid(
       firestore: firestore,
       firebaseAuth: firebaseAuth,
       sessionStore: sessionStore,
