@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_service.dart';
@@ -122,6 +123,30 @@ class CleanGoServiceLocator {
       sessionStore: resolvedSessionStore,
     );
   }
+
+  factory CleanGoServiceLocator.firebaseCollectionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
+    final resolvedFirebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+    return CleanGoServiceLocator._(
+      authProvider:
+          authProvider ??
+          FirebaseCleangoAuthProvider(firebaseAuth: resolvedFirebaseAuth),
+      dashboardDependencies: DashboardDependencies.firebaseCollectionHybrid(
+        firestore: firestore,
+        firebaseAuth: resolvedFirebaseAuth,
+        functions: functions,
+        repositoryFactory: repositoryFactory,
+      ),
+      sessionStore: resolvedSessionStore,
+    );
+  }
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
@@ -177,6 +202,24 @@ class CleanGoServiceLocator {
     _instance = CleanGoServiceLocator.firebaseSubscriptionHybrid(
       firestore: firestore,
       firebaseAuth: firebaseAuth,
+      sessionStore: sessionStore,
+      repositoryFactory: repositoryFactory,
+      authProvider: authProvider,
+    );
+  }
+
+  static void useFirebaseCollectionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    _instance = CleanGoServiceLocator.firebaseCollectionHybrid(
+      firestore: firestore,
+      firebaseAuth: firebaseAuth,
+      functions: functions,
       sessionStore: sessionStore,
       repositoryFactory: repositoryFactory,
       authProvider: authProvider,

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/di/repository_factory.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
@@ -83,6 +84,26 @@ class DashboardDependencies {
           RepositoryFactory.firebaseSubscriptionHybrid(
             firestore: firestore,
             firebaseAuth: firebaseAuth,
+          ),
+    );
+  }
+
+  factory DashboardDependencies.firebaseCollectionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: FirebaseCurrentCustomerProvider(
+        firebaseAuth: firebaseAuth,
+      ),
+      repositoryFactory:
+          repositoryFactory ??
+          RepositoryFactory.firebaseCollectionHybrid(
+            firestore: firestore,
+            firebaseAuth: firebaseAuth,
+            functions: functions,
           ),
     );
   }

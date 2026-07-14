@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_customer_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/firebase/firebase_collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_subscription_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
@@ -133,6 +135,54 @@ class RepositoryFactory {
         firebaseAuth: firebaseAuth,
       ),
       collectionRepository: MockCollectionService(),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: MockNotificationService(),
+    );
+  }
+
+  factory RepositoryFactory.firebaseCollectionHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+  }) {
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: FirebaseSubscriptionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      collectionRepository: FirebaseCollectionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+        functions: functions,
+      ),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: RestNotificationRepository(),
+    );
+  }
+
+  factory RepositoryFactory.firebaseCollection({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+  }) {
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: FirebaseSubscriptionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      collectionRepository: FirebaseCollectionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+        functions: functions,
+      ),
       paymentRepository: MockPaymentService(),
       notificationRepository: MockNotificationService(),
     );
