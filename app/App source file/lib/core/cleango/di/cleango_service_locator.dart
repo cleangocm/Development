@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_service.dart';
 import 'package:ultrawash/core/cleango/auth/firebase_cleango_auth_provider.dart';
@@ -77,6 +79,27 @@ class CleanGoServiceLocator {
     );
   }
 
+  factory CleanGoServiceLocator.firebaseCustomerHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
+    final resolvedFirebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+    return CleanGoServiceLocator._(
+      authProvider:
+          authProvider ??
+          FirebaseCleangoAuthProvider(firebaseAuth: resolvedFirebaseAuth),
+      dashboardDependencies: DashboardDependencies.firebaseCustomerHybrid(
+        firestore: firestore,
+        firebaseAuth: resolvedFirebaseAuth,
+        repositoryFactory: repositoryFactory,
+      ),
+      sessionStore: resolvedSessionStore,
+    );
+  }
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
@@ -100,6 +123,22 @@ class CleanGoServiceLocator {
     CleangoAuthProvider? authProvider,
   }) {
     _instance = CleanGoServiceLocator.restHybrid(
+      sessionStore: sessionStore,
+      repositoryFactory: repositoryFactory,
+      authProvider: authProvider,
+    );
+  }
+
+  static void useFirebaseCustomerHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    _instance = CleanGoServiceLocator.firebaseCustomerHybrid(
+      firestore: firestore,
+      firebaseAuth: firebaseAuth,
       sessionStore: sessionStore,
       repositoryFactory: repositoryFactory,
       authProvider: authProvider,

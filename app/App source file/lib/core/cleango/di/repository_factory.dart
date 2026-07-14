@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/firebase/firebase_customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/rest/rest_collection_repository.dart';
@@ -50,6 +53,45 @@ class RepositoryFactory {
     );
   }
 
+  factory RepositoryFactory.firebaseCustomerHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    NetworkService? networkService,
+  }) {
+    final resolvedNetworkService = networkService ?? NetworkService();
+    final mockCustomerService = MockCustomerService();
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: mockCustomerService,
+      collectionRepository: RestCollectionRepository(
+        networkService: resolvedNetworkService,
+      ),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: RestNotificationRepository(
+        networkService: resolvedNetworkService,
+      ),
+    );
+  }
+
+  factory RepositoryFactory.firebaseCustomer({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+  }) {
+    final mockCustomerService = MockCustomerService();
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: mockCustomerService,
+      collectionRepository: MockCollectionService(),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: MockNotificationService(),
+    );
+  }
   factory RepositoryFactory.restCustomer({NetworkService? networkService}) {
     final mockCustomerService = MockCustomerService();
     return RepositoryFactory(

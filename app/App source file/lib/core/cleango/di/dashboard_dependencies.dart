@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/di/repository_factory.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
@@ -5,6 +7,7 @@ import 'package:ultrawash/core/cleango/repositories/notification_repository.dart
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
+import 'package:ultrawash/core/cleango/session/firebase_current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/rest_current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
@@ -45,6 +48,24 @@ class DashboardDependencies {
         sessionStore: sessionStore ?? SecureSessionStore(),
       ),
       repositoryFactory: repositoryFactory ?? RepositoryFactory.restHybrid(),
+    );
+  }
+
+  factory DashboardDependencies.firebaseCustomerHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: FirebaseCurrentCustomerProvider(
+        firebaseAuth: firebaseAuth,
+      ),
+      repositoryFactory:
+          repositoryFactory ??
+          RepositoryFactory.firebaseCustomerHybrid(
+            firestore: firestore,
+            firebaseAuth: firebaseAuth,
+          ),
     );
   }
   factory DashboardDependencies.rest({
