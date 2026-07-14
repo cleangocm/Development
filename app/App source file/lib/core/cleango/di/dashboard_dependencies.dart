@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/di/repository_factory.dart';
@@ -101,6 +101,26 @@ class DashboardDependencies {
       repositoryFactory:
           repositoryFactory ??
           RepositoryFactory.firebaseCollectionHybrid(
+            firestore: firestore,
+            firebaseAuth: firebaseAuth,
+            functions: functions,
+          ),
+    );
+  }
+
+  factory DashboardDependencies.firebaseNotificationHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: FirebaseCurrentCustomerProvider(
+        firebaseAuth: firebaseAuth,
+      ),
+      repositoryFactory:
+          repositoryFactory ??
+          RepositoryFactory.firebaseNotificationHybrid(
             firestore: firestore,
             firebaseAuth: firebaseAuth,
             functions: functions,

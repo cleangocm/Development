@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
@@ -147,6 +147,30 @@ class CleanGoServiceLocator {
       sessionStore: resolvedSessionStore,
     );
   }
+
+  factory CleanGoServiceLocator.firebaseNotificationHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
+    final resolvedFirebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+    return CleanGoServiceLocator._(
+      authProvider:
+          authProvider ??
+          FirebaseCleangoAuthProvider(firebaseAuth: resolvedFirebaseAuth),
+      dashboardDependencies: DashboardDependencies.firebaseNotificationHybrid(
+        firestore: firestore,
+        firebaseAuth: resolvedFirebaseAuth,
+        functions: functions,
+        repositoryFactory: repositoryFactory,
+      ),
+      sessionStore: resolvedSessionStore,
+    );
+  }
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
@@ -217,6 +241,24 @@ class CleanGoServiceLocator {
     CleangoAuthProvider? authProvider,
   }) {
     _instance = CleanGoServiceLocator.firebaseCollectionHybrid(
+      firestore: firestore,
+      firebaseAuth: firebaseAuth,
+      functions: functions,
+      sessionStore: sessionStore,
+      repositoryFactory: repositoryFactory,
+      authProvider: authProvider,
+    );
+  }
+
+  static void useFirebaseNotificationHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    _instance = CleanGoServiceLocator.firebaseNotificationHybrid(
       firestore: firestore,
       firebaseAuth: firebaseAuth,
       functions: functions,

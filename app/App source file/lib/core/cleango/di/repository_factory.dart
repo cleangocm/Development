@@ -5,6 +5,7 @@ import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_collection_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/firebase/firebase_notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_subscription_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
@@ -185,6 +186,60 @@ class RepositoryFactory {
       ),
       paymentRepository: MockPaymentService(),
       notificationRepository: MockNotificationService(),
+    );
+  }
+
+  factory RepositoryFactory.firebaseNotificationHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+  }) {
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: FirebaseSubscriptionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      collectionRepository: FirebaseCollectionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+        functions: functions,
+      ),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: FirebaseNotificationRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+    );
+  }
+
+  factory RepositoryFactory.firebaseNotification({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+  }) {
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: FirebaseSubscriptionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      collectionRepository: FirebaseCollectionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+        functions: functions,
+      ),
+      paymentRepository: MockPaymentService(),
+      notificationRepository: FirebaseNotificationRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
     );
   }
   factory RepositoryFactory.restCustomer({NetworkService? networkService}) {
