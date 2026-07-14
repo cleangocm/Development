@@ -14,13 +14,15 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS — whitelist specific origins in production, allow all in development
+// CORS â€” whitelist specific origins in production, allow all in development
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(u => u.trim().replace(/\/+$/, ''))
   : [];
 
+const restrictCors = ['production', 'staging'].includes(process.env.NODE_ENV);
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
+  origin: restrictCors
     ? (origin, callback) => {
         if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
@@ -28,7 +30,7 @@ const corsOptions = {
           callback(new Error('Not allowed by CORS'));
         }
       }
-    : true, // true = reflect request origin (allow all in dev)
+    : true, // true = reflect request origin (allow all outside staging/production)
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -51,11 +53,11 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Use the API routes
 app.use('/api/v1', router);
 
-// Health Check — accessible in browser at /health or /
+// Health Check â€” accessible in browser at /health or /
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    message: '🧺 Ultra Wash API is running',
+    message: 'ðŸ§º Ultra Wash API is running',
     version: '1.0.0',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
@@ -83,9 +85,9 @@ app.get('/', (req, res) => {
     </head>
     <body>
       <div class="card">
-        <h1>🧺 Ultra Wash</h1>
+        <h1>ðŸ§º Ultra Wash</h1>
         <p>Laundry Service Booking API</p>
-        <span class="badge">✅ Server Running</span>
+        <span class="badge">âœ… Server Running</span>
         <div class="links">
           <a href="/health">Health Check</a>
           <a href="/api-docs">API Docs</a>

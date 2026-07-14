@@ -5,13 +5,14 @@ export const corsMiddleware = (req, res, next) => {
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(u => u.trim().replace(/\/+$/, ''))
     : [];
+  const restrictCors = ['production', 'staging'].includes(process.env.NODE_ENV);
 
-  const isAllowed = process.env.NODE_ENV !== 'production'
+  const isAllowed = !restrictCors
     || !origin
     || allowedOrigins.includes(origin);
 
   if (isAllowed) {
-    res.header("Access-Control-Allow-Origin", origin || (process.env.NODE_ENV !== 'production' ? "*" : ""));
+    res.header("Access-Control-Allow-Origin", origin || (!restrictCors ? "*" : ""));
   }
 
   res.header("Access-Control-Allow-Credentials", "true");
