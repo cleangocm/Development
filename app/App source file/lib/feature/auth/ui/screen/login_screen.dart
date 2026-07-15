@@ -81,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _showAuthError(result.failure);
   }
 
+  // ignore: unused_element
   Future<void> _handleGoogleLogin() async {
     setState(() => _isLoading = true);
     final result = await _authService.signInWithGoogle();
@@ -125,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           children: [
             // Top Section with light blue background and teal curved overlay
-            Container(
+            SizedBox(
               width: double.infinity,
               height: 180.h,
               child: Stack(

@@ -7,6 +7,7 @@ import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/core/config/api_config.dart';
+import 'package:ultrawash/core/config/data_mode.dart';
 import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
 
 void main() async {
@@ -24,10 +25,26 @@ void main() async {
   // Load token from storage before controllers initialize.
   final sessionStore = SecureSessionStore();
   await sessionStore.readAccessToken();
-  CleanGoServiceLocator.useRestHybrid(sessionStore: sessionStore);
-  debugPrint(ApiConfig.startupSummary());
+  _configureCleanGoRuntime(sessionStore);
+  if (DataModeConfig.current == CleanGoDataMode.restHybrid) {
+    debugPrint(ApiConfig.startupSummary());
+  } else {
+    debugPrint('CLEANGO API environment: inactive for Firebase data mode');
+  }
+  debugPrint(DataModeConfig.startupSummary());
 
   runApp(MyApp());
+}
+
+void _configureCleanGoRuntime(SecureSessionStore sessionStore) {
+  switch (DataModeConfig.current) {
+    case CleanGoDataMode.firebase:
+      CleanGoServiceLocator.useFirebasePaymentHybrid(
+        sessionStore: sessionStore,
+      );
+    case CleanGoDataMode.restHybrid:
+      CleanGoServiceLocator.useRestHybrid(sessionStore: sessionStore);
+  }
 }
 
 Future<bool> _initializeFirebase() async {

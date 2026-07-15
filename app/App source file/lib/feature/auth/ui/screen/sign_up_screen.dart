@@ -160,7 +160,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         child: Column(
           children: [
             // Top Section with light blue background and teal curved overlay
-            Container(
+            SizedBox(
               width: double.infinity,
               height: 180.h,
               child: Stack(

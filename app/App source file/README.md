@@ -13,6 +13,29 @@ flutter run `
   --dart-define=CLEANGO_WEB_APP_URL=http://localhost:3001
 ```
 
+## Data modes
+
+The app can run with either the legacy REST/JWT hybrid data layer or the Firebase dashboard data layer.
+The default remains `restHybrid` for rollback safety.
+
+REST fallback:
+
+```powershell
+flutter run `
+  --dart-define=CLEANGO_DATA_MODE=restHybrid
+```
+
+Firebase runtime:
+
+```powershell
+flutter run `
+  --dart-define=CLEANGO_DATA_MODE=firebase
+```
+
+Firebase mode activates Firebase-backed customer, subscription, collection,
+notification, and read-only payment repositories. It does not remove the legacy
+REST/JWT authentication code yet.
+
 ## API environments
 
 The mobile app reads its backend API configuration from Dart defines:
