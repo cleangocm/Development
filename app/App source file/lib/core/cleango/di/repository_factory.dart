@@ -6,6 +6,7 @@ import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_notification_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/firebase/firebase_payment_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_subscription_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
@@ -236,6 +237,35 @@ class RepositoryFactory {
         functions: functions,
       ),
       paymentRepository: MockPaymentService(),
+      notificationRepository: FirebaseNotificationRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+    );
+  }
+  factory RepositoryFactory.firebasePayment({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+  }) {
+    return RepositoryFactory(
+      customerRepository: FirebaseCustomerRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      subscriptionRepository: FirebaseSubscriptionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
+      collectionRepository: FirebaseCollectionRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+        functions: functions,
+      ),
+      paymentRepository: FirebasePaymentRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
       notificationRepository: FirebaseNotificationRepository(
         firestore: firestore,
         firebaseAuth: firebaseAuth,
