@@ -4,8 +4,10 @@ import 'package:get/get.dart';
 import 'package:ultrawash/app/assets.dart';
 import 'package:ultrawash/app/resource.dart';
 import 'package:ultrawash/app/widget_button.dart';
+import 'package:ultrawash/core/config/data_mode.dart';
 import 'package:ultrawash/feature/auth/ui/screen/login_screen.dart';
 import 'package:ultrawash/feature/auth/ui/screen/sign_up_screen.dart';
+import 'package:ultrawash/feature/mobile_onboarding/cleango_onboarding_flow.dart';
 
 class SplashFindScreen extends StatelessWidget {
   const SplashFindScreen({super.key});
@@ -33,8 +35,11 @@ class SplashFindScreen extends StatelessWidget {
                     Expanded(
                       child: WButton(
                         onPressed: () {
-                          // Registration action
-                        Get.to(() => const SignUpScreen());
+                          if (DataModeConfig.isFirebase) {
+                            Get.to(() => const CleanGoOnboardingFlow());
+                            return;
+                          }
+                          Get.to(() => const SignUpScreen());
                         },
                         label: 'Sign Up',
                         decorationType: DecorationType.primaryStroke,
@@ -61,4 +66,3 @@ class SplashFindScreen extends StatelessWidget {
     );
   }
 }
-
