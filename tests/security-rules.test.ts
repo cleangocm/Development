@@ -6,7 +6,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { getBytes, ref, uploadBytes } from 'firebase/storage';
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
 
@@ -113,6 +113,98 @@ describe('CleanGo Firestore rules', () => {
     });
 
     await assertSucceeds(batch.commit());
+  });
+
+  it('allows an owner to query and read only their address', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      addressLine: 'Owner address',
+      isPrimary: true,
+    });
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertSucceeds(getDoc(doc(db, 'addresses/address-a')));
+    await assertSucceeds(getDocs(query(
+      collection(db, 'addresses'),
+      where('customerId', '==', customerA),
+    )));
+  });
+
+  it('rejects address reads by another customer or an unauthenticated user', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      addressLine: 'Owner address',
+    });
+    const otherDb = testEnv.authenticatedContext(customerB, { role: 'customer' }).firestore();
+    const unauthenticatedDb = testEnv.unauthenticatedContext().firestore();
+
+    await assertFails(getDoc(doc(otherDb, 'addresses/address-a')));
+    await assertFails(getDoc(doc(unauthenticatedDb, 'addresses/address-a')));
+  });
+
+  it('allows a customer to create an address owned by their UID', async () => {
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertSucceeds(setDoc(doc(db, 'addresses/address-a'), {
+      customerId: customerA,
+      addressLine: 'Owner address',
+    }));
+  });
+
+  it('rejects creating an address owned by another customer', async () => {
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertFails(setDoc(doc(db, 'addresses/address-a'), {
+      customerId: customerB,
+      addressLine: 'Other address',
+    }));
+  });
+
+  it('allows an owner to update normal address fields', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      addressLine: 'Old address',
+    });
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertSucceeds(updateDoc(doc(db, 'addresses/address-a'), {
+      addressLine: 'Updated address',
+    }));
+  });
+
+  it('rejects ownership reassignment by the current owner', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      addressLine: 'Owner address',
+    });
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertFails(updateDoc(doc(db, 'addresses/address-a'), {
+      customerId: customerB,
+    }));
+  });
+
+  it('rejects address updates and deletes by another customer', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      addressLine: 'Owner address',
+    });
+    const db = testEnv.authenticatedContext(customerB, { role: 'customer' }).firestore();
+
+    await assertFails(updateDoc(doc(db, 'addresses/address-a'), {
+      addressLine: 'Unauthorized update',
+    }));
+    await assertFails(deleteDoc(doc(db, 'addresses/address-a')));
+  });
+
+  it('allows an owner to delete their address', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      addressLine: 'Owner address',
+    });
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+
+    await assertSucceeds(deleteDoc(doc(db, 'addresses/address-a')));
   });
 
   it('rejects customer-created assigned pickups or active subscriptions', async () => {

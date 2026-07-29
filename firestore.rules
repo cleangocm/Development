@@ -74,7 +74,10 @@ service cloud.firestore {
     match /addresses/{addressId} {
       allow create: if signedIn()
         && request.resource.data.customerId == request.auth.uid;
-      allow read, update, delete: if isAdmin() || ownsExistingCustomerRecord();
+      allow read, delete: if isAdmin() || ownsExistingCustomerRecord();
+      allow update: if isAdmin()
+        || (ownsExistingCustomerRecord()
+          && request.resource.data.customerId == resource.data.customerId);
     }
 
     match /serviceZones/{zoneId} {

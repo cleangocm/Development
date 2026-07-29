@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum CleanGoDataMode { restHybrid, firebase }
 
 class DataModeConfig {
@@ -5,18 +7,36 @@ class DataModeConfig {
 
   static const String _rawDataMode = String.fromEnvironment(
     'CLEANGO_DATA_MODE',
-    defaultValue: 'restHybrid',
+    defaultValue: '',
   );
 
-  static String get currentName => _rawDataMode.trim().toLowerCase();
+  static String get currentName => current.name;
 
   static CleanGoDataMode get current {
-    switch (currentName) {
+    return resolve(rawValue: _rawDataMode, isRelease: kReleaseMode);
+  }
+
+  @visibleForTesting
+  static CleanGoDataMode resolve({
+    required String rawValue,
+    required bool isRelease,
+  }) {
+    final normalized = rawValue.trim().toLowerCase();
+    switch (normalized) {
       case '':
+        return isRelease
+            ? CleanGoDataMode.firebase
+            : CleanGoDataMode.restHybrid;
       case 'rest':
       case 'resthybrid':
       case 'rest_hybrid':
       case 'legacy':
+        if (isRelease) {
+          throw StateError(
+            'CLEANGO release builds require Firebase data mode. '
+            'Remove the REST mode override or set CLEANGO_DATA_MODE=firebase.',
+          );
+        }
         return CleanGoDataMode.restHybrid;
       case 'firebase':
       case 'firebase_first':
@@ -24,7 +44,7 @@ class DataModeConfig {
         return CleanGoDataMode.firebase;
       default:
         throw StateError(
-          'Unsupported CLEANGO_DATA_MODE "$_rawDataMode". '
+          'Unsupported CLEANGO_DATA_MODE "$rawValue". '
           'Use restHybrid or firebase.',
         );
     }

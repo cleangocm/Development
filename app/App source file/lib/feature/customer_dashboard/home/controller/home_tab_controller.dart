@@ -52,8 +52,8 @@ class HomeTabController {
 
     var upcomingCollections = <WasteCollection>[];
     try {
-      upcomingCollections = await collectionRepository.getUpcomingCollections(
-        customer.id,
+      upcomingCollections = List<WasteCollection>.of(
+        await collectionRepository.getUpcomingCollections(customer.id),
       );
     } catch (_) {
       upcomingCollections = <WasteCollection>[];
@@ -61,8 +61,8 @@ class HomeTabController {
 
     var collectionHistory = <WasteCollection>[];
     try {
-      collectionHistory = await collectionRepository.getCollectionHistory(
-        customer.id,
+      collectionHistory = List<WasteCollection>.of(
+        await collectionRepository.getCollectionHistory(customer.id),
       );
     } catch (_) {
       collectionHistory = <WasteCollection>[];

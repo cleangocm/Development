@@ -5,14 +5,17 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
 import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
+import 'package:ultrawash/core/cleango/notifications/firebase_messaging_service.dart';
 import 'package:ultrawash/core/cleango/session/secure_session_store.dart';
 import 'package:ultrawash/core/config/api_config.dart';
 import 'package:ultrawash/core/config/data_mode.dart';
 import 'package:ultrawash/feature/auth/ui/screen/splash_screen.dart';
 
+FirebaseMessagingService? _messagingService;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _initializeFirebase();
+  final firebaseReady = await _initializeFirebase();
 
   const stripePublishableKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
   if (stripePublishableKey.isNotEmpty) {
@@ -26,6 +29,10 @@ void main() async {
   final sessionStore = SecureSessionStore();
   await sessionStore.readAccessToken();
   _configureCleanGoRuntime(sessionStore);
+  if (firebaseReady && DataModeConfig.isFirebase) {
+    _messagingService = FirebaseMessagingService();
+    await _messagingService!.initialize();
+  }
   if (DataModeConfig.current == CleanGoDataMode.restHybrid) {
     debugPrint(ApiConfig.startupSummary());
   } else {
@@ -58,16 +65,20 @@ Future<bool> _initializeFirebase() async {
     await Firebase.initializeApp();
     return true;
   } on FirebaseException catch (error) {
-    debugPrint('Firebase initialization skipped: ${error.message}');
+    if (DataModeConfig.isFirebase) rethrow;
+    debugPrint('Firebase initialization skipped: ${error.code}');
     return false;
-  } catch (error) {
-    debugPrint('Firebase initialization skipped: $error');
+  } catch (_) {
+    if (DataModeConfig.isFirebase) rethrow;
+    debugPrint('Firebase initialization skipped in REST mode');
     return false;
   }
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.home});
+
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +110,7 @@ class MyApp extends StatelessWidget {
             scaffoldBackgroundColor: Color(0xFF022531),
           ),
           themeMode: ThemeMode.light,
-          home: const SplashScreen(),
+          home: home ?? const SplashScreen(),
         );
       },
     );

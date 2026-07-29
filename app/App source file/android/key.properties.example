@@ -1,0 +1,5 @@
+# Copy this file to android/key.properties and keep the real file private.
+storeFile=C:\\secure\\path\\to\\cleango-upload-keystore.jks
+storePassword=your_upload_store_password
+keyAlias=cleango-upload
+keyPassword=your_upload_key_password

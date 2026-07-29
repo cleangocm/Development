@@ -100,20 +100,14 @@ class FirebaseCustomerRepository implements CustomerRepository {
     );
     if (embedded != null) return embedded;
 
-    final byCustomerId = await _queryPrimaryAddress('customerId', customerId);
-    if (byCustomerId != null) return byCustomerId;
-
-    return _queryPrimaryAddress('userId', customerId);
+    return _queryPrimaryAddress(customerId);
   }
 
-  Future<Map<String, dynamic>?> _queryPrimaryAddress(
-    String ownerField,
-    String ownerId,
-  ) async {
+  Future<Map<String, dynamic>?> _queryPrimaryAddress(String customerId) async {
     try {
       final primary = await _firestore
           .collection('addresses')
-          .where(ownerField, isEqualTo: ownerId)
+          .where('customerId', isEqualTo: customerId)
           .where('isPrimary', isEqualTo: true)
           .limit(1)
           .get();
@@ -123,7 +117,7 @@ class FirebaseCustomerRepository implements CustomerRepository {
 
       final first = await _firestore
           .collection('addresses')
-          .where(ownerField, isEqualTo: ownerId)
+          .where('customerId', isEqualTo: customerId)
           .limit(1)
           .get();
       if (first.docs.isEmpty) return null;
