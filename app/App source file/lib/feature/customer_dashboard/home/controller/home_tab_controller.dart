@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
@@ -41,14 +41,32 @@ class HomeTabController {
       return HomeTabViewData.empty();
     }
 
-    final subscription = await subscriptionRepository.getActiveSubscription(
-      customer.id,
-    );
-    final upcomingCollections = await collectionRepository
-        .getUpcomingCollections(customer.id);
-    final collectionHistory = await collectionRepository.getCollectionHistory(
-      customer.id,
-    );
+    Subscription? subscription;
+    try {
+      subscription = await subscriptionRepository.getActiveSubscription(
+        customer.id,
+      );
+    } catch (_) {
+      subscription = null;
+    }
+
+    var upcomingCollections = <WasteCollection>[];
+    try {
+      upcomingCollections = await collectionRepository.getUpcomingCollections(
+        customer.id,
+      );
+    } catch (_) {
+      upcomingCollections = <WasteCollection>[];
+    }
+
+    var collectionHistory = <WasteCollection>[];
+    try {
+      collectionHistory = await collectionRepository.getCollectionHistory(
+        customer.id,
+      );
+    } catch (_) {
+      collectionHistory = <WasteCollection>[];
+    }
 
     upcomingCollections.sort(
       (left, right) => left.scheduledDate.compareTo(right.scheduledDate),

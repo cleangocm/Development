@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:ultrawash/core/cleango/storage/profile_image_storage.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_service.dart';
 import 'package:ultrawash/core/cleango/auth/firebase_cleango_auth_provider.dart';
@@ -194,6 +196,32 @@ class CleanGoServiceLocator {
       sessionStore: resolvedSessionStore,
     );
   }
+  factory CleanGoServiceLocator.firebaseProfileImageHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    FirebaseStorage? storage,
+    ProfileImageStorage? profileImageStorage,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    final resolvedSessionStore = sessionStore ?? SecureSessionStore();
+    final resolvedFirebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+    return CleanGoServiceLocator._(
+      authProvider:
+          authProvider ??
+          FirebaseCleangoAuthProvider(firebaseAuth: resolvedFirebaseAuth),
+      dashboardDependencies: DashboardDependencies.firebaseProfileImageHybrid(
+        firestore: firestore,
+        firebaseAuth: resolvedFirebaseAuth,
+        functions: functions,
+        profileImageStorage: profileImageStorage,
+        repositoryFactory: repositoryFactory,
+      ),
+      sessionStore: resolvedSessionStore,
+    );
+  }
   factory CleanGoServiceLocator.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
@@ -303,6 +331,28 @@ class CleanGoServiceLocator {
       firestore: firestore,
       firebaseAuth: firebaseAuth,
       functions: functions,
+      sessionStore: sessionStore,
+      repositoryFactory: repositoryFactory,
+      authProvider: authProvider,
+    );
+  }
+
+  static void useFirebaseProfileImageHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    FirebaseStorage? storage,
+    ProfileImageStorage? profileImageStorage,
+    SessionStore? sessionStore,
+    RepositoryFactory? repositoryFactory,
+    CleangoAuthProvider? authProvider,
+  }) {
+    _instance = CleanGoServiceLocator.firebaseProfileImageHybrid(
+      firestore: firestore,
+      firebaseAuth: firebaseAuth,
+      functions: functions,
+      storage: storage,
+      profileImageStorage: profileImageStorage,
       sessionStore: sessionStore,
       repositoryFactory: repositoryFactory,
       authProvider: authProvider,

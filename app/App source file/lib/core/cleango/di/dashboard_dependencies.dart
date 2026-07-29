@@ -1,6 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ultrawash/core/cleango/storage/firebase_profile_image_storage.dart';
+import 'package:ultrawash/core/cleango/storage/profile_image_storage.dart';
 import 'package:ultrawash/core/cleango/di/repository_factory.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
@@ -23,6 +25,7 @@ class DashboardDependencies {
     required this.collectionRepository,
     required this.paymentRepository,
     required this.notificationRepository,
+    this.profileImageStorage,
   });
 
   factory DashboardDependencies.mock() {
@@ -33,6 +36,7 @@ class DashboardDependencies {
 
   factory DashboardDependencies.previewSession({
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.rest(
       sessionStore: SharedPreferencesSessionStore(),
@@ -43,6 +47,7 @@ class DashboardDependencies {
   factory DashboardDependencies.restHybrid({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: RestCurrentCustomerProvider(
@@ -56,6 +61,7 @@ class DashboardDependencies {
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: FirebaseCurrentCustomerProvider(
@@ -74,6 +80,7 @@ class DashboardDependencies {
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: FirebaseCurrentCustomerProvider(
@@ -93,6 +100,7 @@ class DashboardDependencies {
     FirebaseAuth? firebaseAuth,
     FirebaseFunctions? functions,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: FirebaseCurrentCustomerProvider(
@@ -113,6 +121,7 @@ class DashboardDependencies {
     FirebaseAuth? firebaseAuth,
     FirebaseFunctions? functions,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: FirebaseCurrentCustomerProvider(
@@ -132,6 +141,7 @@ class DashboardDependencies {
     FirebaseAuth? firebaseAuth,
     FirebaseFunctions? functions,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: FirebaseCurrentCustomerProvider(
@@ -146,9 +156,37 @@ class DashboardDependencies {
           ),
     );
   }
+  factory DashboardDependencies.firebaseProfileImageHybrid({
+    FirebaseFirestore? firestore,
+    FirebaseAuth? firebaseAuth,
+    FirebaseFunctions? functions,
+    ProfileImageStorage? profileImageStorage,
+    RepositoryFactory? repositoryFactory,
+  }) {
+    final resolvedFirebaseAuth = firebaseAuth ?? FirebaseAuth.instance;
+    return DashboardDependencies.withCurrentCustomerProvider(
+      currentCustomerProvider: FirebaseCurrentCustomerProvider(
+        firebaseAuth: resolvedFirebaseAuth,
+      ),
+      repositoryFactory:
+          repositoryFactory ??
+          RepositoryFactory.firebasePayment(
+            firestore: firestore,
+            firebaseAuth: resolvedFirebaseAuth,
+            functions: functions,
+          ),
+      profileImageStorage:
+          profileImageStorage ??
+          FirebaseProfileImageStorage(
+            firestore: firestore,
+            firebaseAuth: resolvedFirebaseAuth,
+          ),
+    );
+  }
   factory DashboardDependencies.rest({
     SessionStore? sessionStore,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     return DashboardDependencies.withCurrentCustomerProvider(
       currentCustomerProvider: RestCurrentCustomerProvider(
@@ -161,6 +199,7 @@ class DashboardDependencies {
   factory DashboardDependencies.withCurrentCustomerProvider({
     required CurrentCustomerProvider currentCustomerProvider,
     RepositoryFactory? repositoryFactory,
+    ProfileImageStorage? profileImageStorage,
   }) {
     final repositories = repositoryFactory ?? RepositoryFactory.mock();
     return DashboardDependencies(
@@ -170,6 +209,7 @@ class DashboardDependencies {
       collectionRepository: repositories.collectionRepository,
       paymentRepository: repositories.paymentRepository,
       notificationRepository: repositories.notificationRepository,
+      profileImageStorage: profileImageStorage,
     );
   }
 
@@ -179,4 +219,5 @@ class DashboardDependencies {
   final CollectionRepository collectionRepository;
   final PaymentRepository paymentRepository;
   final NotificationRepository notificationRepository;
+  final ProfileImageStorage? profileImageStorage;
 }

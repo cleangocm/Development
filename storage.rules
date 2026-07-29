@@ -44,6 +44,16 @@ service firebase.storage {
           || request.resource.contentType == 'application/pdf');
     }
 
+    match /profileImages/{userId}/{fileName} {
+      allow read: if signedIn()
+        && (request.auth.uid == userId || isAdmin());
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.size <= 4 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

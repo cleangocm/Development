@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:ultrawash/feature/customer_dashboard/profile/controller/profile_tab_controller.dart';
 import 'package:ultrawash/feature/customer_dashboard/profile/widgets/account_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/profile/widgets/address_card.dart';
@@ -21,6 +24,8 @@ class _ProfileTabState extends State<ProfileTab> {
   late final ProfileTabController _controller =
       widget._controller ?? ProfileTabController.mock();
   late Future<ProfileTabViewData> _profileData = _controller.load();
+  final ImagePicker _imagePicker = ImagePicker();
+  bool _isUploadingAvatar = false;
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +44,67 @@ class _ProfileTabState extends State<ProfileTab> {
         final customer = data.customer;
         if (customer == null) return const _ProfileEmptyState();
 
-        return _ProfileContent(data: data);
+        return _ProfileContent(
+          data: data,
+          isUploadingAvatar: _isUploadingAvatar,
+          onChangePhoto: _controller.canUploadProfileImage
+              ? _pickAndUploadAvatar
+              : null,
+        );
       },
     );
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    if (_isUploadingAvatar) return;
+
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
+      if (image == null || !mounted) return;
+
+      final bytes = await image.readAsBytes();
+      final refreshed = await _uploadAvatar(bytes: bytes, fileName: image.name);
+      if (!mounted) return;
+
+      setState(() {
+        _profileData = Future.value(refreshed);
+      });
+      _showMessage('Profile photo updated.');
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Unable to update profile photo. Please try another image.');
+    }
+  }
+
+  Future<ProfileTabViewData> _uploadAvatar({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    setState(() {
+      _isUploadingAvatar = true;
+    });
+    try {
+      return await _controller.uploadProfileImage(
+        bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+        fileName: fileName,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingAvatar = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _reload() {
@@ -52,9 +115,15 @@ class _ProfileTabState extends State<ProfileTab> {
 }
 
 class _ProfileContent extends StatelessWidget {
-  const _ProfileContent({required this.data});
+  const _ProfileContent({
+    required this.data,
+    required this.isUploadingAvatar,
+    this.onChangePhoto,
+  });
 
   final ProfileTabViewData data;
+  final bool isUploadingAvatar;
+  final VoidCallback? onChangePhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +145,11 @@ class _ProfileContent extends StatelessWidget {
           style: TextStyle(color: Color(0xFF64748B)),
         ),
         const SizedBox(height: 22),
-        ProfileHeaderCard(customer: customer),
+        ProfileHeaderCard(
+          customer: customer,
+          onChangePhoto: onChangePhoto,
+          isUploadingAvatar: isUploadingAvatar,
+        ),
         const SizedBox(height: 18),
         _ProfileCardGrid(
           children: [

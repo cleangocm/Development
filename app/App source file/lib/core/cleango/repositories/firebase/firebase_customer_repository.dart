@@ -23,22 +23,30 @@ class FirebaseCustomerRepository implements CustomerRepository {
 
   @override
   Future<Customer?> getCustomerById(String customerId) async {
-    final customerSnapshot = await _firestore
-        .collection('customers')
-        .doc(customerId)
-        .get();
-    if (!customerSnapshot.exists) return null;
+    try {
+      final customerSnapshot = await _firestore
+          .collection('customers')
+          .doc(customerId)
+          .get();
+      final customerData = customerSnapshot.data() ?? <String, dynamic>{};
+      final userData = await _readOptionalDocument('users', customerId);
+      if (!customerSnapshot.exists) {
+        return _authBackedCustomer(customerId: customerId, userData: userData);
+      }
+      final addressData = await _readPrimaryAddress(customerId, customerData);
 
-    final customerData = customerSnapshot.data() ?? <String, dynamic>{};
-    final userData = await _readOptionalDocument('users', customerId);
-    final addressData = await _readPrimaryAddress(customerId, customerData);
-
-    return _FirebaseCustomerDto.fromFirestore(
-      id: customerSnapshot.id,
-      customerData: customerData,
-      userData: userData,
-      addressData: addressData,
-    ).toDomain();
+      return _FirebaseCustomerDto.fromFirestore(
+        id: customerSnapshot.id,
+        customerData: customerData,
+        userData: userData,
+        addressData: addressData,
+      ).toDomain();
+    } on FirebaseException catch (error) {
+      if (_isOptionalReadFailure(error)) {
+        return _authBackedCustomer(customerId: customerId);
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -76,7 +84,7 @@ class FirebaseCustomerRepository implements CustomerRepository {
       final snapshot = await _firestore.collection(collection).doc(id).get();
       return snapshot.data();
     } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' || error.code == 'not-found') {
+      if (_isOptionalReadFailure(error) || error.code == 'not-found') {
         return null;
       }
       rethrow;
@@ -121,12 +129,46 @@ class FirebaseCustomerRepository implements CustomerRepository {
       if (first.docs.isEmpty) return null;
       return {...first.docs.first.data(), 'id': first.docs.first.id};
     } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' ||
+      if (_isOptionalReadFailure(error) ||
           error.code == 'failed-precondition') {
         return null;
       }
       rethrow;
     }
+  }
+
+  Customer? _authBackedCustomer({
+    required String customerId,
+    Map<String, dynamic>? userData,
+  }) {
+    final authData = _firebaseAuthUserData(customerId);
+    if (userData == null && authData == null) return null;
+    return _FirebaseCustomerDto.fromFirestore(
+      id: customerId,
+      customerData: const <String, dynamic>{},
+      userData: {...?userData, ...?authData},
+      addressData: null,
+    ).toDomain();
+  }
+
+  bool _isOptionalReadFailure(FirebaseException error) {
+    return error.code == 'permission-denied' ||
+        error.code == 'unavailable' ||
+        error.code == 'deadline-exceeded';
+  }
+
+  Map<String, dynamic>? _firebaseAuthUserData(String customerId) {
+    final user = _firebaseAuth.currentUser;
+    if (user == null || user.uid != customerId) return null;
+    return <String, dynamic>{
+      'fullName': user.displayName,
+      'name': user.displayName,
+      'email': user.email,
+      'phoneNumber': user.phoneNumber,
+      'phone': user.phoneNumber,
+      'avatarUrl': user.photoURL,
+      'photoURL': user.photoURL,
+    };
   }
 
   Future<void> _updatePrimaryAddress(Address address, String customerId) async {

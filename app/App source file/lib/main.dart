@@ -39,9 +39,15 @@ void main() async {
 void _configureCleanGoRuntime(SecureSessionStore sessionStore) {
   switch (DataModeConfig.current) {
     case CleanGoDataMode.firebase:
-      CleanGoServiceLocator.useFirebasePaymentHybrid(
-        sessionStore: sessionStore,
-      );
+      if (DataModeConfig.useFirebaseProfileImageStorage) {
+        CleanGoServiceLocator.useFirebaseProfileImageHybrid(
+          sessionStore: sessionStore,
+        );
+      } else {
+        CleanGoServiceLocator.useFirebasePaymentHybrid(
+          sessionStore: sessionStore,
+        );
+      }
     case CleanGoDataMode.restHybrid:
       CleanGoServiceLocator.useRestHybrid(sessionStore: sessionStore);
   }

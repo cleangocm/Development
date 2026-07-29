@@ -32,6 +32,16 @@ class DataModeConfig {
 
   static bool get isFirebase => current == CleanGoDataMode.firebase;
 
+  static const String _rawProfileImageStorage = String.fromEnvironment(
+    'CLEANGO_PROFILE_IMAGE_STORAGE',
+    defaultValue: 'disabled',
+  );
+
+  static bool get useFirebaseProfileImageStorage {
+    final value = _rawProfileImageStorage.trim().toLowerCase();
+    return value == 'firebase' || value == 'enabled' || value == 'true';
+  }
+
   static String get authModeLabel {
     return isFirebase ? 'firebase-auth' : 'legacy-rest-session';
   }
