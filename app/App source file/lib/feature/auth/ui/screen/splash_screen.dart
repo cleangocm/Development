@@ -6,6 +6,7 @@ import 'package:ultrawash/core/config/data_mode.dart';
 import 'package:ultrawash/feature/auth/ui/controller/auth_controller.dart';
 import 'package:ultrawash/feature/auth/ui/screen/splash_find_screen.dart';
 import 'package:ultrawash/feature/customer_dashboard/customer_dashboard_shell.dart';
+import 'package:ultrawash/feature/mobile_onboarding/customer_onboarding_gate.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,8 +32,11 @@ class _SplashScreenState extends State<SplashScreen> {
     final isLoggedIn = await _isSignedInForCurrentDataMode();
 
     if (isLoggedIn) {
-      // User is logged in, go to CLEANGO customer dashboard
-      Get.offAll(() => const CleanGoCustomerDashboardShell());
+      Get.offAll(
+        () => DataModeConfig.isFirebase
+            ? const CustomerOnboardingGate()
+            : const CleanGoCustomerDashboardShell(),
+      );
     } else {
       // User is not logged in, go to splash find screen
       Get.off(() => const SplashFindScreen());

@@ -11,18 +11,25 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return signedIn() && request.auth.token.role == role;
+      return signedIn()
+        && (('role' in request.auth.token)
+          ? request.auth.token.role == role
+          : false);
     }
 
     function isAdmin() {
       return signedIn()
-        && (('admin' in request.auth.token && request.auth.token.admin == true)
+        && ((('admin' in request.auth.token)
+            ? request.auth.token.admin == true
+            : false)
           || hasRole('admin'));
     }
 
     function isCollector() {
       return signedIn()
-        && (('collector' in request.auth.token && request.auth.token.collector == true)
+        && ((('collector' in request.auth.token)
+            ? request.auth.token.collector == true
+            : false)
           || hasRole('collector'));
     }
 
@@ -54,10 +61,55 @@ service cloud.firestore {
     match /customers/{customerId} {
       allow read: if isOwner(customerId) || isAdmin();
       allow create: if isOwner(customerId)
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.accountStatus == 'active'
+        && request.resource.data.get('role', 'customer') == 'customer'
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'userId',
+          'phoneNumber',
+          'phone',
+          'email',
+          'displayName',
+          'fullName',
+          'name',
+          'avatarUrl',
+          'profileImage',
+          'onboardingCompleted',
+          'accountStatus',
+          'authProviders',
+          'serviceArea',
+          'serviceZone',
+          'createdAt',
+          'updatedAt'
+        ]);
       allow update: if isAdmin()
         || (isOwner(customerId)
-          && request.resource.data.userId == resource.data.userId);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'uid',
+            'userId',
+            'phoneNumber',
+            'phone',
+            'email',
+            'displayName',
+            'fullName',
+            'name',
+            'avatarUrl',
+            'profileImage',
+            'onboardingCompleted',
+            'accountStatus',
+            'authProviders',
+            'serviceArea',
+            'serviceZone',
+            'updatedAt'
+          ])
+          && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
+          && request.resource.data.get('userId', request.auth.uid) == request.auth.uid
+          && request.resource.data.get('accountStatus', 'active')
+            == resource.data.get('accountStatus', 'active')
+          && request.resource.data.get('role', 'customer')
+            == resource.data.get('role', 'customer'));
       allow delete: if isAdmin();
     }
 

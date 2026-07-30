@@ -13,6 +13,8 @@ import 'package:ultrawash/app/wtext.dart';
 import 'package:ultrawash/feature/auth/ui/screen/forgot_password_screen.dart';
 import 'package:ultrawash/feature/auth/ui/screen/sign_up_screen.dart';
 import 'package:ultrawash/feature/customer_dashboard/customer_dashboard_shell.dart';
+import 'package:ultrawash/core/config/data_mode.dart';
+import 'package:ultrawash/feature/mobile_onboarding/customer_onboarding_gate.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -90,7 +92,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result.isSuccess) {
       _showSuccessSnackbar('Google login successful');
-      Get.offAll(() => const CleanGoCustomerDashboardShell());
+      Get.offAll(
+        () => DataModeConfig.isFirebase
+            ? const CustomerOnboardingGate()
+            : const CleanGoCustomerDashboardShell(),
+      );
       return;
     }
 

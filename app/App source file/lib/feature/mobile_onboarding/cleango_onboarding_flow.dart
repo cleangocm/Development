@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:ultrawash/app/assets.dart';
@@ -10,6 +11,9 @@ import 'package:ultrawash/core/cleango/auth/cleango_auth_failure.dart';
 import 'package:ultrawash/core/cleango/auth/cleango_auth_provider.dart';
 import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
 import 'package:ultrawash/core/config/data_mode.dart';
+import 'package:ultrawash/core/cleango/onboarding/customer_provisioning_service.dart';
+import 'package:ultrawash/core/cleango/onboarding/firebase_customer_provisioning_store.dart';
+import 'package:ultrawash/feature/mobile_onboarding/address_onboarding_screen.dart';
 
 const _blue = Color(0xFF1073E6);
 const _green = Color(0xFF16A34A);
@@ -65,10 +69,14 @@ class _CleanGoOnboardingFlowState extends State<CleanGoOnboardingFlow> {
           onBack: () => _go(2),
         ),
         4 => _BiometricSetupScreen(onNext: () => _go(5)),
-        5 => _AccountLocationScreen(
-          onDashboard: () => Get.offAll(() => const _DashboardPreviewScreen()),
-          onWaitlist: () => _go(6),
-        ),
+        5 =>
+          DataModeConfig.isFirebase
+              ? const AddressOnboardingScreen()
+              : _AccountLocationScreen(
+                  onDashboard: () =>
+                      Get.offAll(() => const _DashboardPreviewScreen()),
+                  onWaitlist: () => _go(6),
+                ),
         _ => _WaitlistScreen(
           onDone: () => Get.offAll(() => const _DashboardPreviewScreen()),
         ),
@@ -324,11 +332,22 @@ class _PhoneRegistrationScreenState extends State<_PhoneRegistrationScreen> {
 
     if (result.isSuccess && result.value != null) {
       final session = result.value!;
-      setState(() => _isLoading = false);
       if (session.autoVerified && session.user != null) {
-        widget.onVerified();
+        try {
+          await _provisionAuthenticatedCustomer();
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          widget.onVerified();
+        } on CustomerProvisioningException catch (error) {
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _errorText = error.message;
+          });
+        }
         return;
       }
+      setState(() => _isLoading = false);
       widget.onVerificationStarted(
         _PhoneVerificationStart(
           e164PhoneNumber: normalized.e164,
@@ -555,8 +574,18 @@ class _OtpScreenState extends State<_OtpScreen> {
     if (!mounted) return;
 
     if (result.isSuccess) {
-      setState(() => _isVerifying = false);
-      widget.onVerified();
+      try {
+        await _provisionAuthenticatedCustomer();
+        if (!mounted) return;
+        setState(() => _isVerifying = false);
+        widget.onVerified();
+      } on CustomerProvisioningException catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _isVerifying = false;
+          _errorText = error.message;
+        });
+      }
       return;
     }
 
@@ -586,14 +615,28 @@ class _OtpScreenState extends State<_OtpScreen> {
 
     if (result.isSuccess && result.value != null) {
       final session = result.value!;
+      if (session.autoVerified && session.user != null) {
+        try {
+          await _provisionAuthenticatedCustomer();
+          if (!mounted) return;
+          setState(() {
+            _session = session;
+            _isResending = false;
+          });
+          widget.onVerified();
+        } on CustomerProvisioningException catch (error) {
+          if (!mounted) return;
+          setState(() {
+            _isResending = false;
+            _errorText = error.message;
+          });
+        }
+        return;
+      }
       setState(() {
         _session = session;
         _isResending = false;
       });
-      if (session.autoVerified && session.user != null) {
-        widget.onVerified();
-        return;
-      }
       _startCooldown();
       return;
     }
@@ -726,6 +769,13 @@ _NormalizedPhoneNumber? _normalizeCameroonPhone(String input) {
       '${digits.substring(0, 1)} ${digits.substring(1, 3)} '
       '${digits.substring(3, 5)} ${digits.substring(5, 7)} ${digits.substring(7)}';
   return _NormalizedPhoneNumber(e164: '+237$digits', display: '+237 $grouped');
+}
+
+Future<void> _provisionAuthenticatedCustomer() async {
+  await CustomerProvisioningService(
+    store: FirebaseCustomerProvisioningStore(),
+    firebaseAuth: FirebaseAuth.instance,
+  ).provisionCurrentUser();
 }
 
 String _messageForFailure(CleangoAuthFailure? failure) {
