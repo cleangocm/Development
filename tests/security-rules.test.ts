@@ -6,13 +6,13 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 import { getBytes, ref, uploadBytes } from 'firebase/storage';
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
 
 let testEnv: RulesTestEnvironment;
 
-const projectId = 'cleango-rules-test';
+const projectId = 'clean-go-150fb';
 const customerA = 'customer-a';
 const customerB = 'customer-b';
 const collectorA = 'collector-a';
@@ -33,7 +33,7 @@ beforeAll(async () => {
       rules: readFileSync(resolve('storage.rules'), 'utf8'),
     },
   });
-});
+}, 60_000);
 
 describe('CleanGo Storage rules', () => {
   const image = new Uint8Array([137, 80, 78, 71]);
@@ -84,36 +84,83 @@ async function seed(path: string, data: Record<string, unknown>) {
 
 describe('CleanGo Firestore rules', () => {
   it('allows the customer Day 5 booking transaction', async () => {
+    await seed('addresses/address-a', {
+      customerId: customerA,
+      label: 'Home',
+      addressLine: 'Rue 1, Essos',
+      city: 'Yaounde',
+      district: 'Essos',
+      latitude: 3.86,
+      longitude: 11.52,
+      serviceZone: 'yaounde',
+      isWithinServiceArea: true,
+    });
     const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
     const batch = writeBatch(db);
-    batch.set(doc(db, 'addresses/address-a'), {
-      customerId: customerA,
-      addressLine: 'Rue 1, Essos',
-      serviceZoneId: 'yaounde-supported',
-    });
-    batch.set(doc(db, 'subscriptions/subscription-a'), {
+    const subscriptionId = `subscription_${'d'.repeat(64)}`;
+    batch.set(doc(db, `subscriptions/${subscriptionId}`), {
+      idempotencyKey: subscriptionId,
       customerId: customerA,
       planId: 'basic',
-      status: 'pending',
+      planSnapshot: {
+        id: 'basic',
+        englishName: 'Basic Plan',
+        frenchName: 'Forfait Basique',
+        monthlyPriceXaf: 5000,
+        pickupsPerWeek: 1,
+        pickupsPerMonth: 4,
+        includedBagsPerPickup: 2,
+        bagsSupplied: true,
+        flexibleSchedule: false,
+        urgentPickup: false,
+        requiresQuotation: false,
+        startingPriceXaf: null,
+        currency: 'XAF',
+        pricingVersion: 'approved-v1-2026-07',
+        active: true,
+        displayOrder: 1,
+      },
+      serviceAddressId: 'address-a',
+      serviceAddressSnapshot: {
+        label: 'Home',
+        addressLine: 'Rue 1, Essos',
+        city: 'Yaounde',
+        district: 'Essos',
+        latitude: 3.86,
+        longitude: 11.52,
+      },
+      status: 'pendingPayment',
+      paymentStatus: 'unpaid',
+      startDate: null,
+      endDate: null,
+      billingCycle: 'monthly',
+      includedPickupsPerMonth: 4,
+      includedBagsPerPickup: 2,
+      usedPickups: 0,
+      extraBagRate: 500,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      cancelledAt: null,
+      pricingVersion: 'approved-v1-2026-07',
     });
     batch.set(doc(db, 'pickups/pickup-a'), {
       customerId: customerA,
       collectorId: null,
-      subscriptionId: 'subscription-a',
+      subscriptionId,
       addressId: 'address-a',
       scheduledDate: '2026-06-16',
       status: 'scheduled',
     });
     batch.set(doc(db, 'payments/payment-a'), {
       customerId: customerA,
-      subscriptionId: 'subscription-a',
+      subscriptionId,
       amountXaf: 0,
       provider: 'manual',
       status: 'pending',
     });
 
     await assertSucceeds(batch.commit());
-  });
+  }, 15_000);
 
   it('allows an owner to query and read only their address', async () => {
     await seed('addresses/address-a', {

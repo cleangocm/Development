@@ -69,10 +69,14 @@ class HomeTabController {
     }
 
     upcomingCollections.sort(
-      (left, right) => left.scheduledDate.compareTo(right.scheduledDate),
+      (left, right) => (left.scheduledDate ?? left.createdAt).compareTo(
+        right.scheduledDate ?? right.createdAt,
+      ),
     );
     collectionHistory.sort(
-      (left, right) => right.scheduledDate.compareTo(left.scheduledDate),
+      (left, right) => (right.scheduledDate ?? right.createdAt).compareTo(
+        left.scheduledDate ?? left.createdAt,
+      ),
     );
 
     final nextCollection = upcomingCollections.isEmpty
@@ -86,13 +90,15 @@ class HomeTabController {
       subscriptionPlanName: subscription == null
           ? 'No active plan'
           : _subscriptionPlanLabel(subscription.plan),
-      renewalDateLabel: subscription == null
+      renewalDateLabel: subscription?.renewalDate == null
           ? 'Not scheduled'
-          : _dateLabel(subscription.renewalDate, includeYear: true),
+          : _dateLabel(subscription!.renewalDate!, includeYear: true),
       remainingPickups: subscription?.remainingCollections ?? 0,
-      nextCollectionDateLabel: nextCollection == null
-          ? 'No collection scheduled'
-          : _dateLabel(nextCollection.scheduledDate),
+      nextCollectionDateLabel: nextCollection?.scheduledDate == null
+          ? nextCollection?.isQuotationPending == true
+                ? 'Quotation review pending'
+                : 'No collection scheduled'
+          : _dateLabel(nextCollection!.scheduledDate!),
       nextCollectionStatusLabel: nextCollection == null
           ? 'Pending'
           : _collectionStatusLabel(nextCollection.status),
@@ -117,8 +123,12 @@ class HomeTabController {
         return 'Basic Plan';
       case SubscriptionPlan.standard:
         return 'Standard Plan';
+      case SubscriptionPlan.popular:
+        return 'Popular Plan';
       case SubscriptionPlan.premium:
         return 'Premium Plan';
+      case SubscriptionPlan.apartmentsHotels:
+        return 'Apartments & Hotels';
       case SubscriptionPlan.business:
         return 'Business Plan';
       case SubscriptionPlan.enterprise:
@@ -126,39 +136,9 @@ class HomeTabController {
     }
   }
 
-  static String _collectionStatusLabel(CollectionStatus status) {
-    switch (status) {
-      case CollectionStatus.scheduled:
-        return 'Scheduled';
-      case CollectionStatus.collectorAssigned:
-        return 'Collector assigned';
-      case CollectionStatus.inProgress:
-        return 'In progress';
-      case CollectionStatus.completed:
-        return 'Completed';
-      case CollectionStatus.missed:
-        return 'Missed';
-      case CollectionStatus.cancelled:
-        return 'Cancelled';
-    }
-  }
+  static String _collectionStatusLabel(CollectionStatus status) => status.label;
 
-  static String _wasteTypeLabel(WasteType wasteType) {
-    switch (wasteType) {
-      case WasteType.household:
-        return 'Household waste';
-      case WasteType.recyclable:
-        return 'Recyclable waste';
-      case WasteType.organic:
-        return 'Organic waste';
-      case WasteType.commercial:
-        return 'Commercial waste';
-      case WasteType.medical:
-        return 'Medical waste';
-      case WasteType.bulky:
-        return 'Bulky waste';
-    }
-  }
+  static String _wasteCategoryLabel(WasteCategory category) => category.label;
 
   static HomeRecentActivityViewData _recentActivityFromCollection(
     WasteCollection collection,
@@ -170,9 +150,11 @@ class HomeTabController {
           : status == CollectionStatus.completed
           ? 'Collection completed'
           : 'Collection updated',
-      subtitle: _wasteTypeLabel(collection.wasteType),
+      subtitle: _wasteCategoryLabel(collection.wasteCategory),
       dateLabel: _shortDateLabel(
-        collection.completedAt ?? collection.scheduledDate,
+        collection.completedAt ??
+            collection.scheduledDate ??
+            collection.createdAt,
       ),
       icon: status == CollectionStatus.missed
           ? Icons.report_problem_outlined

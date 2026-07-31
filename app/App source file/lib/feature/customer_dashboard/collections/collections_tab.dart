@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/collection.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/collection_booking_screen.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/collection_details_screen.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/controller/collections_tab_controller.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/subscription_plans_screen.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_history_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_timeline_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/empty_collections_state.dart';
@@ -27,97 +31,193 @@ class _CollectionsTabState extends State<CollectionsTab> {
         if (snapshot.connectionState != ConnectionState.done) {
           return const _CollectionsLoadingState();
         }
-
         if (snapshot.hasError) {
           return _CollectionsErrorState(onRetry: _retry);
         }
-
         return _CollectionsContent(
           data: snapshot.data ?? CollectionsTabViewData.empty(),
+          onBook: _openBooking,
+          onPlans: _openPlans,
+          onViewDetails: _openDetails,
+          onRefresh: _refresh,
         );
       },
     );
   }
 
+  Future<void> _openBooking() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CollectionBookingScreen(controller: _controller),
+      ),
+    );
+    if (changed == true && mounted) _retry();
+  }
+
+  Future<void> _openPlans() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const SubscriptionPlansScreen()),
+    );
+  }
+
+  Future<void> _openDetails(WasteCollection collection) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CollectionDetailsScreen(
+          controller: _controller,
+          initialCollection: collection,
+        ),
+      ),
+    );
+    if (changed == true && mounted) _retry();
+  }
+
+  Future<void> _refresh() async {
+    final future = _controller.load();
+    setState(() => _collectionsData = future);
+    await future;
+  }
+
   void _retry() {
-    setState(() {
-      _collectionsData = _controller.load();
-    });
+    setState(() => _collectionsData = _controller.load());
   }
 }
 
 class _CollectionsContent extends StatelessWidget {
-  const _CollectionsContent({required this.data});
+  const _CollectionsContent({
+    required this.data,
+    required this.onBook,
+    required this.onPlans,
+    required this.onViewDetails,
+    required this.onRefresh,
+  });
 
   final CollectionsTabViewData data;
+  final VoidCallback onBook;
+  final VoidCallback onPlans;
+  final ValueChanged<WasteCollection> onViewDetails;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
-      children: [
-        const Text(
-          'My collections',
-          style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Track upcoming pickups and review your collection history.',
-          style: TextStyle(color: Color(0xFF64748B)),
-        ),
-        const SizedBox(height: 24),
-        const _SectionTitle(title: 'Upcoming collections'),
-        const SizedBox(height: 12),
-        if (data.upcomingCollections.isEmpty)
-          const EmptyCollectionsState()
-        else
-          Column(
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              for (final collection in data.upcomingCollections) ...[
-                CollectionTimelineCard(collection: collection),
-                const SizedBox(height: 14),
-              ],
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'My collections',
+                    style: TextStyle(
+                      color: Color(0xFF0F172A),
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Book, track, and review your CLEANGO collections.',
+                    style: TextStyle(color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onPlans,
+                    icon: const Icon(Icons.workspace_premium_outlined),
+                    label: const Text('View plans'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF15803D),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: onBook,
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text('Book a collection'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-        const SizedBox(height: 28),
-        const _SectionTitle(title: 'Collection history'),
-        const SizedBox(height: 12),
-        if (data.collectionHistory.isEmpty)
-          const EmptyCollectionsState()
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final twoColumns = constraints.maxWidth >= 760;
-              if (!twoColumns) {
-                return Column(
-                  children: [
-                    for (final collection in data.collectionHistory) ...[
-                      CollectionHistoryCard(collection: collection),
-                      const SizedBox(height: 14),
+          const SizedBox(height: 24),
+          const _SectionTitle(title: 'Upcoming collections'),
+          const SizedBox(height: 12),
+          if (data.upcomingCollections.isEmpty)
+            const EmptyCollectionsState(
+              title: 'No upcoming collections',
+              message: 'Book a collection when you are ready.',
+            )
+          else
+            Column(
+              children: [
+                for (final collection in data.upcomingCollections) ...[
+                  CollectionTimelineCard(
+                    collection: collection,
+                    onViewDetails: () => onViewDetails(collection),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+              ],
+            ),
+          const SizedBox(height: 28),
+          const _SectionTitle(title: 'Collection history'),
+          const SizedBox(height: 12),
+          if (data.collectionHistory.isEmpty)
+            const EmptyCollectionsState(
+              title: 'No collection history',
+              message: 'Completed and cancelled bookings will appear here.',
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 760;
+                if (!twoColumns) {
+                  return Column(
+                    children: [
+                      for (final collection in data.collectionHistory) ...[
+                        CollectionHistoryCard(
+                          collection: collection,
+                          onViewDetails: () => onViewDetails(collection),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                     ],
-                  ],
+                  );
+                }
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: data.collectionHistory
+                      .map(
+                        (collection) => SizedBox(
+                          width: (constraints.maxWidth - 16) / 2,
+                          child: CollectionHistoryCard(
+                            collection: collection,
+                            onViewDetails: () => onViewDetails(collection),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
                 );
-              }
-
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: data.collectionHistory
-                    .map(
-                      (collection) => SizedBox(
-                        width: (constraints.maxWidth - 16) / 2,
-                        child: CollectionHistoryCard(collection: collection),
-                      ),
-                    )
-                    .toList(growable: false),
-              );
-            },
-          ),
-      ],
+              },
+            ),
+        ],
+      ),
     );
   }
 }

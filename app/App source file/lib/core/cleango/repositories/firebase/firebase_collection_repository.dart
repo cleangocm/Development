@@ -1,57 +1,113 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ultrawash/core/cleango/collections/collection_booking_service.dart';
+import 'package:ultrawash/core/cleango/collections/collection_pricing_service.dart';
+import 'package:ultrawash/core/cleango/collections/collection_schedule_service.dart';
 import 'package:ultrawash/core/cleango/models/address.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
 import 'package:ultrawash/core/cleango/repositories/collection_repository.dart';
 
-class FirebaseCollectionRepository implements CollectionRepository {
+class FirebaseCollectionRepository
+    implements CollectionRepository, CollectionBookingStore {
   FirebaseCollectionRepository({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
     FirebaseFunctions? functions,
+    CollectionPricingService pricingService = const CollectionPricingService(),
+    CollectionScheduleService scheduleService =
+        const CollectionScheduleService(),
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-       _functions =
-           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
+       _pricingService = pricingService,
+       _scheduleService = scheduleService;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
-  final FirebaseFunctions _functions;
+  final CollectionPricingService _pricingService;
+  final CollectionScheduleService _scheduleService;
+
+  late final CollectionBookingService _bookingService =
+      CollectionBookingService(
+        store: this,
+        pricingService: _pricingService,
+        scheduleService: _scheduleService,
+      );
+
+  @override
+  Future<List<Address>> getSavedAddresses(String customerId) async {
+    _assertCurrentCustomer(customerId);
+    final snapshot = await _firestore
+        .collection('addresses')
+        .where('customerId', isEqualTo: customerId)
+        .get();
+    final addresses = snapshot.docs.map(_addressFromDocument).toList()
+      ..sort((left, right) {
+        if (left.isPrimary != right.isPrimary) return left.isPrimary ? -1 : 1;
+        return left.label.toLowerCase().compareTo(right.label.toLowerCase());
+      });
+    return List.unmodifiable(addresses);
+  }
+
+  @override
+  CollectionPricing quoteCollection({
+    required CollectionBookingMode bookingMode,
+    required int? declaredBagCount,
+    required String serviceZone,
+  }) {
+    return _bookingService.quote(
+      bookingMode: bookingMode,
+      declaredBagCount: declaredBagCount,
+      serviceZone: serviceZone,
+    );
+  }
+
+  @override
+  Future<CollectionBookingResult> bookCollection(
+    CollectionBookingRequest request,
+  ) async {
+    final uid = _currentUid();
+    try {
+      return await _bookingService.book(customerId: uid, request: request);
+    } on FirebaseException catch (error) {
+      throw CollectionBookingException(
+        error.code,
+        _firebaseMessage(error.code, fallback: 'Unable to submit booking.'),
+      );
+    }
+  }
 
   @override
   Future<List<WasteCollection>> getUpcomingCollections(
     String customerId,
   ) async {
     _assertCurrentCustomer(customerId);
-    final collections = await _readCustomerPickups(customerId);
-    return List.unmodifiable(
-      collections.where((collection) => collection.isUpcoming),
-    );
+    final collections = await _readCustomerCollections(customerId);
+    final upcoming =
+        collections.where((collection) => collection.isUpcoming).toList()
+          ..sort((left, right) => _sortDate(left).compareTo(_sortDate(right)));
+    return List.unmodifiable(upcoming);
   }
 
   @override
   Future<List<WasteCollection>> getCollectionHistory(String customerId) async {
     _assertCurrentCustomer(customerId);
-    final collections = await _readCustomerPickups(customerId);
-    return List.unmodifiable(
-      collections.where((collection) => !collection.isUpcoming),
-    );
+    final collections = await _readCustomerCollections(customerId);
+    final history =
+        collections.where((collection) => !collection.isUpcoming).toList()
+          ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
+    return List.unmodifiable(history);
   }
 
   @override
   Future<WasteCollection?> getCollectionById(String collectionId) async {
     final uid = _currentUid();
     final snapshot = await _firestore
-        .collection('pickups')
+        .collection('collections')
         .doc(collectionId)
         .get();
     if (!snapshot.exists) return null;
-
-    final data = snapshot.data() ?? <String, dynamic>{};
-    if (_stringValue(data['customerId']) != uid) {
-      throw StateError('Cannot read another customer pickup.');
-    }
+    _verifyOwner(snapshot.data(), uid);
     return _collectionFromDocument(snapshot);
   }
 
@@ -60,327 +116,490 @@ class FirebaseCollectionRepository implements CollectionRepository {
     String collectionId,
     DateTime scheduledDate,
     String timeWindow,
-  ) async {
-    await _verifyPickupOwner(collectionId);
-
-    final callable = _functions.httpsCallable('reschedulePickup');
-    await callable.call<Map<String, dynamic>>({
-      'pickupId': collectionId,
-      'scheduledDate': _dateOnly(scheduledDate),
-    });
-
-    final updated = await getCollectionById(collectionId);
-    if (updated == null) {
-      throw StateError('Pickup was not found after rescheduling.');
-    }
-    return updated.copyWith(
-      timeWindow: timeWindow.isEmpty ? updated.timeWindow : timeWindow,
+  ) {
+    throw UnsupportedError(
+      'Collection rescheduling is not available in this phase. Cancel the '
+      'pending request and create a new booking.',
     );
   }
 
   @override
   Future<WasteCollection> reportMissedCollection(String collectionId) {
     throw UnsupportedError(
-      'Reporting a missed collection requires a customer-safe Cloud Function. '
-      'The existing pickup status function is collector/admin controlled, so the '
-      'mobile app must not write missed status directly.',
+      'Missed-collection reporting requires a trusted operational workflow.',
     );
   }
 
-  Future<List<WasteCollection>> _readCustomerPickups(String customerId) async {
+  @override
+  Future<WasteCollection> cancelCollection(String collectionId) async {
+    final uid = _currentUid();
+    final reference = _firestore.collection('collections').doc(collectionId);
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(reference);
+        if (!snapshot.exists) {
+          throw const CollectionBookingException(
+            'not-found',
+            'This collection booking no longer exists.',
+          );
+        }
+        final data = snapshot.data() ?? const <String, dynamic>{};
+        _verifyOwner(data, uid);
+        final status = _collectionStatus(data['status']);
+        if (status != CollectionStatus.quotationRequested &&
+            status != CollectionStatus.pending &&
+            status != CollectionStatus.confirmed) {
+          throw const CollectionBookingException(
+            'cancellation-not-allowed',
+            'Only quotation, pending, or confirmed requests can be cancelled.',
+          );
+        }
+        transaction.update(reference, {
+          'status': CollectionStatus.cancelled.wireValue,
+          'cancelledAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+      return _reload(reference, 'The cancelled booking could not be reloaded.');
+    } on FirebaseException catch (error) {
+      throw CollectionBookingException(
+        error.code,
+        _firebaseMessage(error.code, fallback: 'Unable to cancel booking.'),
+      );
+    }
+  }
+
+  @override
+  Future<WasteCollection> acceptQuotation(String collectionId) async {
+    final uid = _currentUid();
+    final reference = _firestore.collection('collections').doc(collectionId);
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(reference);
+        if (!snapshot.exists) {
+          throw const CollectionBookingException(
+            'not-found',
+            'This quotation request no longer exists.',
+          );
+        }
+        final data = snapshot.data() ?? const <String, dynamic>{};
+        _verifyOwner(data, uid);
+        final quotationStatus = _quotationStatus(data['quotationStatus']);
+        final quotedAmount = _nullableInteger(data['quotedAmount']);
+        if (quotationStatus != CollectionQuotationStatus.quoted ||
+            quotedAmount == null ||
+            quotedAmount <= 0) {
+          throw const CollectionBookingException(
+            'quotation-not-ready',
+            'CLEANGO has not issued a quotation for this request yet.',
+          );
+        }
+        transaction.update(reference, {
+          'quotationStatus': CollectionQuotationStatus.accepted.wireValue,
+          'quotationAcceptedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+      return _reload(
+        reference,
+        'The accepted quotation could not be reloaded.',
+      );
+    } on FirebaseException catch (error) {
+      throw CollectionBookingException(
+        error.code,
+        _firebaseMessage(error.code, fallback: 'Unable to accept quotation.'),
+      );
+    }
+  }
+
+  @override
+  Future<Address?> getOwnedAddress({
+    required String customerId,
+    required String addressId,
+  }) async {
+    _assertCurrentCustomer(customerId);
     final snapshot = await _firestore
-        .collection('pickups')
+        .collection('addresses')
+        .doc(addressId)
+        .get();
+    if (!snapshot.exists) return null;
+    final data = snapshot.data() ?? const <String, dynamic>{};
+    if (_string(data['customerId']) != customerId) return null;
+    return _addressFromDocument(snapshot);
+  }
+
+  @override
+  Future<CollectionBookingResult> createOrGetCollection(
+    CollectionBookingDraft draft,
+  ) async {
+    final uid = _currentUid();
+    if (draft.customerId != uid) {
+      throw const CollectionBookingException(
+        'permission-denied',
+        'A collection can only be booked for the signed-in customer.',
+      );
+    }
+    final reference = _firestore
+        .collection('collections')
+        .doc(draft.documentId);
+    var duplicate = false;
+    try {
+      await reference.set(_bookingPayload(draft));
+    } on FirebaseException catch (createError) {
+      if (createError.code != 'permission-denied') rethrow;
+
+      // A missing document cannot prove ownership in Firestore rules. If the
+      // deterministic ID already exists, verify its owner and treat this as a
+      // retry instead of weakening read access for uncreated documents.
+      try {
+        final existing = await reference.get();
+        if (!existing.exists) rethrow;
+        _verifyOwner(existing.data(), uid);
+        duplicate = true;
+      } on FirebaseException {
+        throw createError;
+      }
+    }
+    return CollectionBookingResult(
+      collection: await _reload(
+        reference,
+        'The collection booking could not be confirmed.',
+      ),
+      wasDuplicate: duplicate,
+    );
+  }
+
+  Future<List<WasteCollection>> _readCustomerCollections(
+    String customerId,
+  ) async {
+    final snapshot = await _firestore
+        .collection('collections')
         .where('customerId', isEqualTo: customerId)
         .get();
-
-    final collections = await Future.wait(
-      snapshot.docs.map(_collectionFromDocument),
-    );
-    collections.sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
-    return collections;
+    return snapshot.docs.map(_collectionFromDocument).toList();
   }
 
-  Future<WasteCollection> _collectionFromDocument(
+  Map<String, Object?> _bookingPayload(CollectionBookingDraft draft) {
+    final pricing = _pricingMap(draft.pricing);
+    return {
+      'idempotencyKey': draft.documentId,
+      'customerId': draft.customerId,
+      'addressId': draft.addressId,
+      'addressSnapshot': {
+        'label': draft.addressSnapshot.label,
+        'addressLine': draft.addressSnapshot.addressLine,
+        'city': draft.addressSnapshot.city,
+        'district': draft.addressSnapshot.district,
+        'latitude': draft.addressSnapshot.latitude,
+        'longitude': draft.addressSnapshot.longitude,
+      },
+      'serviceZone': draft.serviceZone,
+      'bookingMode': draft.bookingMode.wireValue,
+      'collectionType': draft.collectionType.wireValue,
+      'wasteCategory': draft.wasteCategory.wireValue,
+      'scheduleType': draft.scheduleType.wireValue,
+      'scheduledDate': draft.scheduledDateUtc == null
+          ? null
+          : Timestamp.fromDate(draft.scheduledDateUtc!),
+      'scheduledTimeWindow': draft.scheduledTimeWindow?.wireValue,
+      'frequency': draft.frequency.wireValue,
+      'status': draft.status.wireValue,
+      'paymentStatus': CollectionPaymentStatus.unpaid.wireValue,
+      'pricing': pricing,
+      'pricingSnapshot': pricing,
+      'declaredBagCount': draft.declaredBagCount,
+      'includedBagCount': draft.pricing.includedBagCount,
+      'extraBagCount': draft.pricing.extraBagCount,
+      'extraBagRate': draft.pricing.extraBagRate,
+      'extraBagAmount': draft.pricing.extraBagAmount,
+      'quotationStatus': draft.quotationStatus.wireValue,
+      'quotedAmount': null,
+      'quotationReviewedBy': null,
+      'quotationReviewedAt': null,
+      'quotationAcceptedAt': null,
+      'photoStoragePaths': draft.photoStoragePaths,
+      'subscriptionId': null,
+      'includedInSubscription': false,
+      'customerNotes': draft.customerNotes,
+      'assignedWorkerId': null,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'cancelledAt': null,
+      'completedAt': null,
+    };
+  }
+
+  Map<String, Object?> _pricingMap(CollectionPricing pricing) {
+    return {
+      'currency': pricing.currency,
+      'baseAmount': pricing.baseAmount,
+      'includedBagCount': pricing.includedBagCount,
+      'extraBagCount': pricing.extraBagCount,
+      'extraBagRate': pricing.extraBagRate,
+      'extraBagAmount': pricing.extraBagAmount,
+      'serviceFee': pricing.serviceFee,
+      'discount': pricing.discount,
+      'totalAmount': pricing.totalAmount,
+      'pricingVersion': pricing.pricingVersion,
+      'calculationSource': pricing.calculationSource,
+    };
+  }
+
+  WasteCollection _collectionFromDocument(
     DocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final data = document.data() ?? <String, dynamic>{};
-    final collectorData = await _readCollectorData(data);
-    final addressData = await _readAddressData(data);
+  ) {
+    final data = document.data() ?? const <String, dynamic>{};
+    final rawScheduledDate = _date(data['scheduledDate']);
+    final localScheduledDate = rawScheduledDate == null
+        ? null
+        : _scheduleService.toServiceLocalDate(rawScheduledDate.toUtc());
+    final address = _map(data['addressSnapshot']);
+    final pricing =
+        _map(data['pricingSnapshot']) ??
+        _map(data['pricing']) ??
+        const <String, dynamic>{};
+    final createdAt =
+        _date(data['createdAt']) ??
+        rawScheduledDate ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    final bookingMode = _bookingMode(
+      data['bookingMode'],
+      data['collectionType'],
+    );
 
-    return _FirebaseCollectionDto.fromFirestore(
+    return WasteCollection(
       id: document.id,
-      data: data,
-      collectorData: collectorData,
-      addressData: addressData,
-    ).toDomain();
+      customerId: _string(data['customerId']),
+      addressId: _string(data['addressId']),
+      addressSnapshot: CollectionAddressSnapshot(
+        label: _first([address?['label'], 'Collection address']),
+        addressLine: _first([
+          address?['addressLine'],
+          address?['street'],
+          'Address unavailable',
+        ]),
+        city: _first([address?['city'], 'Yaounde']),
+        district: _first([address?['district'], address?['neighborhood'], '']),
+        latitude: _double(address?['latitude']),
+        longitude: _double(address?['longitude']),
+      ),
+      serviceZone: _first([data['serviceZone'], 'unknown']),
+      bookingMode: bookingMode,
+      collectionType: bookingMode.collectionType,
+      wasteCategory: _wasteCategory(data['wasteCategory']),
+      scheduleType: _scheduleType(data['scheduleType'], bookingMode),
+      scheduledDate: localScheduledDate,
+      scheduledTimeWindow: CollectionTimeWindow.fromWireValue(
+        data['scheduledTimeWindow'],
+      ),
+      frequency: _frequency(data['frequency']),
+      status: _collectionStatus(data['status']),
+      paymentStatus: _paymentStatus(data['paymentStatus']),
+      pricing: CollectionPricing(
+        currency: _first([pricing['currency'], 'XAF']),
+        baseAmount: _nullableInteger(pricing['baseAmount']),
+        includedBagCount: _integer(
+          pricing['includedBagCount'] ?? data['includedBagCount'],
+        ),
+        extraBagCount: _integer(
+          pricing['extraBagCount'] ?? data['extraBagCount'],
+        ),
+        extraBagRate: _integer(
+          pricing['extraBagRate'] ?? data['extraBagRate'] ?? 500,
+        ),
+        extraBagAmount: _integer(
+          pricing['extraBagAmount'] ?? data['extraBagAmount'],
+        ),
+        serviceFee: _integer(pricing['serviceFee']),
+        discount: _integer(pricing['discount']),
+        totalAmount: _nullableInteger(pricing['totalAmount']),
+        pricingVersion: _first([pricing['pricingVersion'], 'legacy-unknown']),
+        calculationSource: _first([
+          pricing['calculationSource'],
+          'legacyUnknown',
+        ]),
+      ),
+      declaredBagCount: _nullableInteger(data['declaredBagCount']),
+      includedBagCount: _integer(data['includedBagCount']),
+      extraBagCount: _integer(data['extraBagCount']),
+      extraBagRate: _integer(data['extraBagRate'] ?? 500),
+      quotationStatus: _quotationStatus(data['quotationStatus']),
+      quotedAmount: _nullableInteger(data['quotedAmount']),
+      quotationReviewedBy: _nullableString(data['quotationReviewedBy']),
+      quotationReviewedAt: _date(data['quotationReviewedAt']),
+      quotationAcceptedAt: _date(data['quotationAcceptedAt']),
+      photoStoragePaths: _stringList(data['photoStoragePaths']),
+      subscriptionId: _nullableString(data['subscriptionId']),
+      includedInSubscription: data['includedInSubscription'] == true,
+      customerNotes: _string(data['customerNotes']),
+      assignedWorkerId: _nullableString(data['assignedWorkerId']),
+      createdAt: createdAt,
+      updatedAt: _date(data['updatedAt']) ?? createdAt,
+      cancelledAt: _date(data['cancelledAt']),
+      completedAt: _date(data['completedAt']),
+    );
   }
 
-  Future<Map<String, dynamic>?> _readCollectorData(
-    Map<String, dynamic> data,
+  Address _addressFromDocument(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data() ?? const <String, dynamic>{};
+    final zone = _first([data['serviceZone'], data['serviceZoneId']]);
+    return Address(
+      id: document.id,
+      label: _first([data['label'], 'Saved address']),
+      street: _first([data['addressLine'], data['street'], data['address']]),
+      city: _first([data['city'], 'Yaounde']),
+      region: _first([data['district'], data['neighborhood'], data['region']]),
+      country: _first([data['country'], 'Cameroon']),
+      latitude: _double(data['latitude']),
+      longitude: _double(data['longitude']),
+      serviceZone: zone,
+      isWithinServiceArea:
+          data['isWithinServiceArea'] == true &&
+          zone == CollectionPricingService.supportedServiceZone,
+      isPrimary: data['isDefault'] == true || data['isPrimary'] == true,
+    );
+  }
+
+  Future<WasteCollection> _reload(
+    DocumentReference<Map<String, dynamic>> reference,
+    String missingMessage,
   ) async {
-    final collectorId = _stringValue(data['collectorId']);
-    if (collectorId.isEmpty) return null;
-
-    try {
-      final snapshot = await _firestore
-          .collection('collectors')
-          .doc(collectorId)
-          .get();
-      return snapshot.data();
-    } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' || error.code == 'not-found') {
-        return null;
-      }
-      rethrow;
+    final snapshot = await reference.get();
+    if (!snapshot.exists) {
+      throw CollectionBookingException('not-found', missingMessage);
     }
+    return _collectionFromDocument(snapshot);
   }
 
-  Future<Map<String, dynamic>?> _readAddressData(
-    Map<String, dynamic> data,
-  ) async {
-    final embedded = _asMap(data['address'] ?? data['primaryAddress']);
-    if (embedded != null) return embedded;
-
-    final addressId = _stringValue(data['addressId']);
-    if (addressId.isEmpty) return null;
-
-    try {
-      final snapshot = await _firestore
-          .collection('addresses')
-          .doc(addressId)
-          .get();
-      final address = snapshot.data();
-      if (address == null) return null;
-      return {...address, 'id': snapshot.id};
-    } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' || error.code == 'not-found') {
-        return null;
-      }
-      rethrow;
-    }
-  }
-
-  Future<void> _verifyPickupOwner(String collectionId) async {
-    final uid = _currentUid();
-    final snapshot = await _firestore
-        .collection('pickups')
-        .doc(collectionId)
-        .get();
-    if (!snapshot.exists) throw StateError('Pickup was not found.');
-    final data = snapshot.data() ?? <String, dynamic>{};
-    if (_stringValue(data['customerId']) != uid) {
-      throw StateError('Cannot modify another customer pickup.');
-    }
+  DateTime _sortDate(WasteCollection collection) {
+    return collection.scheduledDate ?? collection.createdAt;
   }
 
   void _assertCurrentCustomer(String customerId) {
-    final uid = _currentUid();
-    if (uid != customerId) {
-      throw StateError('Cannot read another customer pickups.');
+    if (_currentUid() != customerId) {
+      throw const CollectionBookingException(
+        'permission-denied',
+        'Another customer collection cannot be accessed.',
+      );
+    }
+  }
+
+  void _verifyOwner(Map<String, dynamic>? data, String uid) {
+    if (_string(data?['customerId']) != uid) {
+      throw const CollectionBookingException(
+        'permission-denied',
+        'Another customer collection cannot be accessed.',
+      );
     }
   }
 
   String _currentUid() {
     final uid = _firebaseAuth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
-      throw StateError('A Firebase user is required to read pickups.');
+      throw const CollectionBookingException(
+        'authentication-required',
+        'Sign in before accessing collections.',
+      );
     }
     return uid;
   }
 }
 
-class _FirebaseCollectionDto {
-  const _FirebaseCollectionDto({
-    required this.id,
-    required this.customerId,
-    required this.scheduledDate,
-    required this.timeWindow,
-    required this.wasteType,
-    required this.address,
-    required this.status,
-    this.collectorName,
-    this.completedAt,
-  });
-
-  factory _FirebaseCollectionDto.fromFirestore({
-    required String id,
-    required Map<String, dynamic> data,
-    required Map<String, dynamic>? collectorData,
-    required Map<String, dynamic>? addressData,
-  }) {
-    final status = _statusValue(data['status']);
-    return _FirebaseCollectionDto(
-      id: id,
-      customerId: _stringValue(data['customerId']),
-      scheduledDate: _dateValue(data['scheduledDate']) ?? DateTime.now(),
-      timeWindow: _firstNonEmpty([
-        data['timeWindow'],
-        data['pickupWindow'],
-        data['scheduledWindow'],
-        data['preferredTimeWindow'],
-        'Time pending',
-      ]),
-      wasteType: _wasteType(data),
-      address: _FirebasePickupAddressDto.fromFirestore(
-        pickupId: id,
-        data: data,
-        addressData: addressData,
-      ),
-      status: status,
-      collectorName: _collectorName(data, collectorData),
-      completedAt: status == CollectionStatus.completed
-          ? _dateValue(data['completedAt'] ?? data['updatedAt'])
-          : null,
-    );
-  }
-
-  final String id;
-  final String customerId;
-  final DateTime scheduledDate;
-  final String timeWindow;
-  final WasteType wasteType;
-  final Address address;
-  final CollectionStatus status;
-  final String? collectorName;
-  final DateTime? completedAt;
-
-  WasteCollection toDomain() {
-    return WasteCollection(
-      id: id,
-      customerId: customerId,
-      scheduledDate: scheduledDate,
-      timeWindow: timeWindow,
-      wasteType: wasteType,
-      address: address,
-      status: status,
-      collectorName: collectorName,
-      completedAt: completedAt,
-    );
-  }
+CollectionBookingMode _bookingMode(Object? value, Object? collectionType) {
+  return switch (_string(value)) {
+    'subscription' => CollectionBookingMode.subscription,
+    'oneTimePhotoQuote' => CollectionBookingMode.oneTimePhotoQuote,
+    'oneTimeBagCount' => CollectionBookingMode.oneTimeBagCount,
+    _ =>
+      _string(collectionType) == 'subscription'
+          ? CollectionBookingMode.subscription
+          : CollectionBookingMode.oneTimeBagCount,
+  };
 }
 
-class _FirebasePickupAddressDto {
-  const _FirebasePickupAddressDto._();
-
-  static Address fromFirestore({
-    required String pickupId,
-    required Map<String, dynamic> data,
-    required Map<String, dynamic>? addressData,
-  }) {
-    final location = _asMap(data['location'] ?? addressData?['location']);
-    final geoPoint = data['geoPoint'] ?? addressData?['geoPoint'];
-    final coordinates = location?['coordinates'];
-
-    return Address(
-      id: _firstNonEmpty([
-        addressData?['id'],
-        data['addressId'],
-        '$pickupId-address',
-      ]),
-      label: _firstNonEmpty([addressData?['label'], 'Collection address']),
-      street: _firstNonEmpty([
-        data['addressText'],
-        data['locationDetails'],
-        addressData?['street'],
-        addressData?['address'],
-        'Address pending',
-      ]),
-      city: _firstNonEmpty([addressData?['city'], data['city']]),
-      region: _firstNonEmpty([addressData?['region'], data['region']]),
-      country: _firstNonEmpty([addressData?['country'], 'Cameroon']),
-      latitude: _coordinate(
-        data['latitude'] ?? addressData?['latitude'],
-        coordinates,
-        1,
-        geoPoint,
-      ),
-      longitude: _coordinate(
-        data['longitude'] ?? addressData?['longitude'],
-        coordinates,
-        0,
-        geoPoint,
-      ),
-      serviceZone: _firstNonEmpty([
-        data['serviceZoneName'],
-        data['serviceZoneId'],
-        addressData?['serviceZone'],
-      ]),
-      isWithinServiceArea: true,
-      isPrimary: false,
-    );
-  }
-}
-
-CollectionStatus _statusValue(dynamic value) {
-  final status = _stringValue(
-    value,
-  ).toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
-  switch (status) {
-    case 'scheduled':
-      return CollectionStatus.scheduled;
-    case 'assigned':
-    case 'collector_assigned':
-    case 'pickup_assigned':
-      return CollectionStatus.collectorAssigned;
-    case 'en_route':
-    case 'arrived':
-    case 'in_progress':
-    case 'rescheduled':
-      return CollectionStatus.inProgress;
-    case 'completed':
-      return CollectionStatus.completed;
-    case 'missed':
-      return CollectionStatus.missed;
-    case 'cancelled':
-    case 'canceled':
-      return CollectionStatus.cancelled;
-    default:
-      return CollectionStatus.scheduled;
-  }
-}
-
-WasteType _wasteType(Map<String, dynamic> data) {
-  final value = _firstNonEmpty([
-    data['wasteType'],
-    data['type'],
-    data['category'],
-  ]).toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
-
-  switch (value) {
-    case 'recyclable':
-    case 'recycling':
-      return WasteType.recyclable;
-    case 'organic':
-      return WasteType.organic;
-    case 'commercial':
-    case 'business':
-      return WasteType.commercial;
-    case 'medical':
-      return WasteType.medical;
-    case 'bulky':
-    case 'large':
-      return WasteType.bulky;
-    case 'household':
-    case 'domestic':
-    default:
-      return WasteType.household;
-  }
-}
-
-String? _collectorName(
-  Map<String, dynamic> data,
-  Map<String, dynamic>? collectorData,
+CollectionScheduleType _scheduleType(
+  Object? value,
+  CollectionBookingMode bookingMode,
 ) {
-  final name = _firstNonEmpty([
-    data['collectorName'],
-    collectorData?['fullName'],
-    collectorData?['name'],
-    collectorData?['displayName'],
-  ]);
-  return name.isEmpty ? null : name;
+  if (_string(value) == 'quotationPending' ||
+      bookingMode == CollectionBookingMode.oneTimePhotoQuote) {
+    return CollectionScheduleType.quotationPending;
+  }
+  return CollectionScheduleType.customerSelected;
 }
 
-DateTime? _dateValue(dynamic value) {
+WasteCategory _wasteCategory(Object? value) {
+  return switch (_string(value)) {
+    'officeBusiness' ||
+    'commercial' ||
+    'business' => WasteCategory.officeBusiness,
+    'other' => WasteCategory.other,
+    _ => WasteCategory.household,
+  };
+}
+
+CollectionFrequency _frequency(Object? value) {
+  return switch (_string(value)) {
+    'weekly' => CollectionFrequency.weekly,
+    'twiceWeekly' => CollectionFrequency.twiceWeekly,
+    'monthly' => CollectionFrequency.monthly,
+    _ => CollectionFrequency.once,
+  };
+}
+
+CollectionStatus _collectionStatus(Object? value) {
+  return switch (_string(value).toLowerCase()) {
+    'quotationrequested' ||
+    'quotation_requested' => CollectionStatus.quotationRequested,
+    'confirmed' => CollectionStatus.confirmed,
+    'assigned' ||
+    'collectorassigned' ||
+    'collector_assigned' => CollectionStatus.assigned,
+    'inprogress' ||
+    'in_progress' ||
+    'en_route' ||
+    'arrived' => CollectionStatus.inProgress,
+    'completed' => CollectionStatus.completed,
+    'missed' => CollectionStatus.missed,
+    'cancelled' || 'canceled' => CollectionStatus.cancelled,
+    _ => CollectionStatus.pending,
+  };
+}
+
+CollectionPaymentStatus _paymentStatus(Object? value) {
+  return switch (_string(value).toLowerCase()) {
+    'pending' || 'processing' => CollectionPaymentStatus.pending,
+    'paid' => CollectionPaymentStatus.paid,
+    'failed' => CollectionPaymentStatus.failed,
+    'refunded' => CollectionPaymentStatus.refunded,
+    _ => CollectionPaymentStatus.unpaid,
+  };
+}
+
+CollectionQuotationStatus _quotationStatus(Object? value) {
+  return switch (_string(value)) {
+    'requested' => CollectionQuotationStatus.requested,
+    'underReview' => CollectionQuotationStatus.underReview,
+    'quoted' => CollectionQuotationStatus.quoted,
+    'accepted' => CollectionQuotationStatus.accepted,
+    'rejected' => CollectionQuotationStatus.rejected,
+    'expired' => CollectionQuotationStatus.expired,
+    _ => CollectionQuotationStatus.notRequired,
+  };
+}
+
+String _firebaseMessage(String code, {required String fallback}) {
+  return switch (code) {
+    'permission-denied' => 'You do not have permission for this booking.',
+    'unavailable' => 'The booking service is temporarily unavailable.',
+    'deadline-exceeded' => 'The booking request timed out. Try again.',
+    _ => fallback,
+  };
+}
+
+DateTime? _date(Object? value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
   if (value is String) return DateTime.tryParse(value);
@@ -388,43 +607,46 @@ DateTime? _dateValue(dynamic value) {
   return null;
 }
 
-String _dateOnly(DateTime date) {
-  final month = date.month.toString().padLeft(2, '0');
-  final day = date.day.toString().padLeft(2, '0');
-  return '${date.year}-$month-$day';
-}
-
-Map<String, dynamic>? _asMap(dynamic value) {
+Map<String, dynamic>? _map(Object? value) {
   if (value is Map<String, dynamic>) return value;
   if (value is Map) return Map<String, dynamic>.from(value);
   return null;
 }
 
-String _stringValue(dynamic value) => value?.toString().trim() ?? '';
+String _string(Object? value) => value?.toString().trim() ?? '';
 
-String _firstNonEmpty(List<dynamic> values) {
+String? _nullableString(Object? value) {
+  final result = _string(value);
+  return result.isEmpty ? null : result;
+}
+
+String _first(List<Object?> values) {
   for (final value in values) {
-    final string = _stringValue(value);
-    if (string.isNotEmpty) return string;
+    final candidate = _string(value);
+    if (candidate.isNotEmpty) return candidate;
   }
   return '';
 }
 
-double _coordinate(
-  dynamic directValue,
-  dynamic coordinates,
-  int coordinateIndex,
-  dynamic geoPoint,
-) {
-  if (directValue is num) return directValue.toDouble();
-  if (directValue is String) return double.tryParse(directValue) ?? 0;
-  if (geoPoint is GeoPoint) {
-    return coordinateIndex == 1 ? geoPoint.latitude : geoPoint.longitude;
-  }
-  if (coordinates is List && coordinates.length > coordinateIndex) {
-    final value = coordinates[coordinateIndex];
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0;
-  }
-  return 0;
+int _integer(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(_string(value)) ?? 0;
+}
+
+int? _nullableInteger(Object? value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(_string(value));
+}
+
+double? _double(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(_string(value));
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) return const [];
+  return List.unmodifiable(value.map(_string).where((item) => item.isNotEmpty));
 }

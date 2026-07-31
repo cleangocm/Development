@@ -44,6 +44,17 @@ service firebase.storage {
           || request.resource.contentType == 'application/pdf');
     }
 
+    match /collection-quotes/{userId}/{bookingId}/{fileName} {
+      allow read: if signedIn()
+        && (request.auth.uid == userId || isAdmin());
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && bookingId.matches('collection_[0-9a-f]{64}')
+        && fileName.matches('quote_[1-4]_[0-9a-f]{16}\\.(jpg|png|webp)')
+        && request.resource.size <= 4 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
     match /profileImages/{userId}/{fileName} {
       allow read: if signedIn()
         && (request.auth.uid == userId || isAdmin());

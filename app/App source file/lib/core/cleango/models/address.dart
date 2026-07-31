@@ -19,8 +19,8 @@ class Address {
   final String city;
   final String region;
   final String country;
-  final double latitude;
-  final double longitude;
+  final double? latitude;
+  final double? longitude;
   final String serviceZone;
   final bool isWithinServiceArea;
   final bool isPrimary;

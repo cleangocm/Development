@@ -1,9 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ultrawash/core/cleango/collections/collection_pricing_service.dart';
+import 'package:ultrawash/core/cleango/models/address.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
+import 'package:ultrawash/core/cleango/subscriptions/subscription_pricing_catalogue.dart';
+import 'package:ultrawash/core/cleango/subscriptions/subscription_request_service.dart';
 
-class FirebaseSubscriptionRepository implements SubscriptionRepository {
+class FirebaseSubscriptionRepository
+    implements SubscriptionRepository, SubscriptionRequestStore {
   FirebaseSubscriptionRepository({
     FirebaseFirestore? firestore,
     FirebaseAuth? firebaseAuth,
@@ -13,283 +18,422 @@ class FirebaseSubscriptionRepository implements SubscriptionRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _firebaseAuth;
 
+  late final SubscriptionRequestService _requestService =
+      SubscriptionRequestService(store: this);
+
+  @override
+  Future<List<SubscriptionPlanDefinition>> getAvailablePlans() async {
+    _currentUid();
+    try {
+      final snapshot = await _firestore
+          .collection('plans')
+          .where('active', isEqualTo: true)
+          .get();
+      final remotePlans =
+          snapshot.docs
+              .map((document) => _planFromMap(document.id, document.data()))
+              .where(SubscriptionPricingCatalogue.matchesApprovedPlan)
+              .toList()
+            ..sort(
+              (left, right) => left.displayOrder.compareTo(right.displayOrder),
+            );
+      if (remotePlans.length == SubscriptionPricingCatalogue.plans.length) {
+        return List.unmodifiable(remotePlans);
+      }
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied' &&
+          error.code != 'unavailable' &&
+          error.code != 'failed-precondition') {
+        rethrow;
+      }
+    }
+
+    // Display-only fallback. New subscription writes remain independently
+    // validated against this versioned contract by Firestore rules.
+    return SubscriptionPricingCatalogue.plans;
+  }
+
+  @override
+  Future<SubscriptionRequestResult> requestSubscription(
+    SubscriptionRequest request,
+  ) async {
+    final uid = _currentUid();
+    try {
+      return await _requestService.request(customerId: uid, request: request);
+    } on FirebaseException catch (error) {
+      throw SubscriptionRequestException(
+        error.code,
+        _firebaseMessage(
+          error.code,
+          fallback: 'Unable to submit subscription request.',
+        ),
+      );
+    }
+  }
+
   @override
   Future<Subscription?> getActiveSubscription(String customerId) async {
     _assertCurrentCustomer(customerId);
-
-    final activeSnapshot = await _firestore
+    final snapshot = await _firestore
         .collection('subscriptions')
         .where('customerId', isEqualTo: customerId)
         .where('status', isEqualTo: 'active')
         .limit(1)
         .get();
-
-    if (activeSnapshot.docs.isNotEmpty) {
-      return _subscriptionFromDocument(activeSnapshot.docs.first);
-    }
-
-    final subscriptions = await getSubscriptionHistory(customerId);
-    for (final subscription in subscriptions) {
-      if (subscription.isActive) return subscription;
-    }
-    return null;
+    if (snapshot.docs.isEmpty) return null;
+    return _subscriptionFromDocument(snapshot.docs.first);
   }
 
   @override
   Future<List<Subscription>> getSubscriptionHistory(String customerId) async {
     _assertCurrentCustomer(customerId);
-
     final snapshot = await _firestore
         .collection('subscriptions')
         .where('customerId', isEqualTo: customerId)
         .get();
-
-    final subscriptions = await Future.wait(
-      snapshot.docs.map(_subscriptionFromDocument),
-    );
-    subscriptions.sort((a, b) => b.renewalDate.compareTo(a.renewalDate));
+    final subscriptions = snapshot.docs.map(_subscriptionFromDocument).toList()
+      ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
     return List.unmodifiable(subscriptions);
   }
 
   @override
   Future<Subscription> updateSubscription(Subscription subscription) {
     throw UnsupportedError(
-      'Subscription state changes must use dedicated Cloud Functions. '
-      'The current SubscriptionRepository interface is too broad for safe '
-      'customer-side plan, price, status, or billing updates.',
+      'Subscription state, price, payment, and usage changes require trusted '
+      'CLEANGO administration or dedicated Cloud Functions.',
     );
   }
 
-  Future<Subscription> _subscriptionFromDocument(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) async {
-    final data = document.data();
-    final planData = await _readPlanData(data);
-    final pickupAllowance = _pickupAllowance(data, planData);
-    final usedPickups = await _usedPickupsInCurrentCycle(
-      subscriptionId: document.id,
-      cycleStart: _dateValue(data['currentPeriodStart'] ?? data['startDate']),
-      renewalDate: _renewalDate(data),
-    );
-
-    return _FirebaseSubscriptionDto.fromFirestore(
-      id: document.id,
-      data: data,
-      planData: planData,
-      remainingCollections: _remainingCollections(
-        data,
-        pickupAllowance: pickupAllowance,
-        usedPickups: usedPickups,
-      ),
-    ).toDomain();
-  }
-
-  Future<Map<String, dynamic>?> _readPlanData(Map<String, dynamic> data) async {
-    final planId = _stringValue(data['planId']);
-    if (planId.isEmpty) return null;
-
-    try {
-      final snapshot = await _firestore.collection('plans').doc(planId).get();
-      return snapshot.data();
-    } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' || error.code == 'not-found') {
-        return null;
-      }
-      rethrow;
-    }
-  }
-
-  Future<int> _usedPickupsInCurrentCycle({
-    required String subscriptionId,
-    required DateTime? cycleStart,
-    required DateTime renewalDate,
+  @override
+  Future<Address?> getOwnedSubscriptionAddress({
+    required String customerId,
+    required String addressId,
   }) async {
-    try {
-      var query = _firestore
-          .collection('pickups')
-          .where('subscriptionId', isEqualTo: subscriptionId)
-          .where('status', whereIn: ['completed', 'missed']);
+    _assertCurrentCustomer(customerId);
+    final snapshot = await _firestore
+        .collection('addresses')
+        .doc(addressId)
+        .get();
+    if (!snapshot.exists) return null;
+    final data = snapshot.data() ?? const <String, dynamic>{};
+    if (_string(data['customerId']) != customerId) return null;
+    final zone = _first([data['serviceZone'], data['serviceZoneId']]);
+    return Address(
+      id: snapshot.id,
+      label: _first([data['label'], 'Saved address']),
+      street: _first([data['addressLine'], data['street'], data['address']]),
+      city: _first([data['city'], 'Yaounde']),
+      region: _first([data['district'], data['neighborhood'], data['region']]),
+      country: _first([data['country'], 'Cameroon']),
+      latitude: _double(data['latitude']),
+      longitude: _double(data['longitude']),
+      serviceZone: zone,
+      isWithinServiceArea:
+          data['isWithinServiceArea'] == true &&
+          zone == CollectionPricingService.supportedServiceZone,
+      isPrimary: data['isPrimary'] == true || data['isDefault'] == true,
+    );
+  }
 
-      if (cycleStart != null) {
-        query = query.where(
-          'scheduledDate',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(cycleStart),
-        );
-      }
-      query = query.where(
-        'scheduledDate',
-        isLessThan: Timestamp.fromDate(renewalDate),
+  @override
+  Future<SubscriptionRequestResult> createOrGetSubscription(
+    SubscriptionRequestDraft draft,
+  ) async {
+    final uid = _currentUid();
+    if (draft.customerId != uid) {
+      throw const SubscriptionRequestException(
+        'permission-denied',
+        'A subscription can only be requested for the signed-in customer.',
       );
-
-      final snapshot = await query.get();
-      return snapshot.docs.length;
-    } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' ||
-          error.code == 'failed-precondition') {
-        return 0;
-      }
-      rethrow;
     }
+    final reference = _firestore
+        .collection('subscriptions')
+        .doc(draft.documentId);
+    var duplicate = false;
+    try {
+      await reference.set(_requestPayload(draft));
+    } on FirebaseException catch (createError) {
+      if (createError.code != 'permission-denied') rethrow;
+
+      // A missing document cannot prove ownership in Firestore rules. If the
+      // deterministic ID already exists, verify its owner and treat this as a
+      // retry instead of weakening read access for uncreated documents.
+      try {
+        final existing = await reference.get();
+        if (!existing.exists) rethrow;
+        _verifyOwner(existing.data(), uid);
+        duplicate = true;
+      } on FirebaseException {
+        throw createError;
+      }
+    }
+    final snapshot = await reference.get();
+    if (!snapshot.exists) {
+      throw const SubscriptionRequestException(
+        'request-not-created',
+        'The subscription request could not be confirmed.',
+      );
+    }
+    return SubscriptionRequestResult(
+      subscription: _subscriptionFromDocument(snapshot),
+      wasDuplicate: duplicate,
+    );
+  }
+
+  Map<String, Object?> _requestPayload(SubscriptionRequestDraft draft) {
+    final plan = draft.plan;
+    return {
+      'idempotencyKey': draft.documentId,
+      'customerId': draft.customerId,
+      'planId': plan.id,
+      'planSnapshot': _planMap(plan),
+      'serviceAddressId': draft.addressId,
+      'serviceAddressSnapshot': {
+        'label': draft.addressSnapshot.label,
+        'addressLine': draft.addressSnapshot.addressLine,
+        'city': draft.addressSnapshot.city,
+        'district': draft.addressSnapshot.district,
+        'latitude': draft.addressSnapshot.latitude,
+        'longitude': draft.addressSnapshot.longitude,
+      },
+      'status': draft.status.wireValue,
+      'paymentStatus': draft.paymentStatus.wireValue,
+      'startDate': null,
+      'endDate': null,
+      'billingCycle': draft.billingCycle.wireValue,
+      'includedPickupsPerMonth': plan.pickupsPerMonth,
+      'includedBagsPerPickup': plan.includedBagsPerPickup,
+      'usedPickups': 0,
+      'extraBagRate': SubscriptionPricingCatalogue.extraBagRateXaf,
+      'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'cancelledAt': null,
+      'pricingVersion': plan.pricingVersion,
+    };
+  }
+
+  Subscription _subscriptionFromDocument(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data() ?? const <String, dynamic>{};
+    final planMap = _map(data['planSnapshot']);
+    final planId = _first([data['planId'], planMap?['id'], data['plan']]);
+    final plan = _planFromMap(planId, planMap ?? data);
+    final address =
+        _map(data['serviceAddressSnapshot']) ??
+        _map(data['addressSnapshot']) ??
+        const <String, dynamic>{};
+    final createdAt =
+        _date(data['createdAt']) ??
+        _date(data['startDate']) ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+    return Subscription(
+      id: document.id,
+      customerId: _first([data['customerId'], data['userId']]),
+      planId: plan.id,
+      planSnapshot: plan,
+      serviceAddressId: _first([data['serviceAddressId'], data['addressId']]),
+      serviceAddressSnapshot: SubscriptionAddressSnapshot(
+        label: _first([address['label'], 'Service address']),
+        addressLine: _first([
+          address['addressLine'],
+          address['street'],
+          address['address'],
+        ]),
+        city: _first([address['city'], 'Yaounde']),
+        district: _first([
+          address['district'],
+          address['neighborhood'],
+          address['region'],
+        ]),
+        latitude: _double(address['latitude']),
+        longitude: _double(address['longitude']),
+      ),
+      status: _status(data['status']),
+      paymentStatus: _paymentStatus(data['paymentStatus']),
+      startDate: _date(data['startDate']),
+      endDate: _date(
+        data['endDate'] ?? data['renewalDate'] ?? data['currentPeriodEnd'],
+      ),
+      billingCycle: _billingCycle(data['billingCycle']),
+      includedPickupsPerMonth: _integer(
+        data['includedPickupsPerMonth'] ??
+            data['pickupAllowance'] ??
+            data['pickupsPerMonth'] ??
+            plan.pickupsPerMonth,
+      ),
+      includedBagsPerPickup: _integer(
+        data['includedBagsPerPickup'] ?? plan.includedBagsPerPickup,
+      ),
+      usedPickups: _integer(data['usedPickups']),
+      extraBagRate: _integer(
+        data['extraBagRate'] ?? SubscriptionPricingCatalogue.extraBagRateXaf,
+      ),
+      createdAt: createdAt,
+      updatedAt: _date(data['updatedAt']) ?? createdAt,
+      cancelledAt: _date(data['cancelledAt']),
+      pricingVersion: _first([
+        data['pricingVersion'],
+        plan.pricingVersion,
+        'legacy-unknown',
+      ]),
+    );
   }
 
   void _assertCurrentCustomer(String customerId) {
-    final uid = _firebaseAuth.currentUser?.uid;
-    if (uid == null || uid.isEmpty) {
-      throw StateError('A Firebase user is required to read subscriptions.');
-    }
-    if (uid != customerId) {
+    if (_currentUid() != customerId) {
       throw StateError('Cannot read another customer subscription.');
     }
   }
-}
 
-class _FirebaseSubscriptionDto {
-  const _FirebaseSubscriptionDto({
-    required this.id,
-    required this.customerId,
-    required this.plan,
-    required this.renewalDate,
-    required this.remainingCollections,
-    required this.status,
-    required this.monthlyPriceXaf,
-  });
-
-  factory _FirebaseSubscriptionDto.fromFirestore({
-    required String id,
-    required Map<String, dynamic> data,
-    required Map<String, dynamic>? planData,
-    required int remainingCollections,
-  }) {
-    return _FirebaseSubscriptionDto(
-      id: id,
-      customerId: _firstNonEmpty([data['customerId'], data['userId']]),
-      plan: _planValue(data, planData),
-      renewalDate: _renewalDate(data),
-      remainingCollections: remainingCollections,
-      status: _statusValue(data['status']),
-      monthlyPriceXaf: _intValue(
-        data['monthlyPriceXaf'] ??
-            data['priceXaf'] ??
-            data['amountXaf'] ??
-            planData?['monthlyPriceXaf'] ??
-            planData?['priceXaf'] ??
-            planData?['price'] ??
-            planData?['amountXaf'],
-      ),
-    );
-  }
-
-  final String id;
-  final String customerId;
-  final SubscriptionPlan plan;
-  final DateTime renewalDate;
-  final int remainingCollections;
-  final SubscriptionStatus status;
-  final int monthlyPriceXaf;
-
-  Subscription toDomain() {
-    return Subscription(
-      id: id,
-      customerId: customerId,
-      plan: plan,
-      renewalDate: renewalDate,
-      remainingCollections: remainingCollections,
-      status: status,
-      monthlyPriceXaf: monthlyPriceXaf,
-    );
-  }
-}
-
-SubscriptionPlan _planValue(
-  Map<String, dynamic> data,
-  Map<String, dynamic>? planData,
-) {
-  final raw = _firstNonEmpty([
-    data['plan'],
-    data['planName'],
-    planData?['plan'],
-    planData?['name'],
-    data['planId'],
-  ]).toLowerCase();
-
-  if (raw.contains('enterprise')) return SubscriptionPlan.enterprise;
-  if (raw.contains('business')) return SubscriptionPlan.business;
-  if (raw.contains('premium')) return SubscriptionPlan.premium;
-  if (raw.contains('standard')) return SubscriptionPlan.standard;
-  if (raw.contains('basic')) return SubscriptionPlan.basic;
-  return SubscriptionPlan.basic;
-}
-
-SubscriptionStatus _statusValue(dynamic value) {
-  final status = _stringValue(value).toLowerCase();
-  switch (status) {
-    case 'active':
-      return SubscriptionStatus.active;
-    case 'pending':
-      return SubscriptionStatus.pending;
-    case 'paused':
-      return SubscriptionStatus.paused;
-    case 'cancelled':
-    case 'canceled':
-      return SubscriptionStatus.cancelled;
-    case 'expired':
-      return SubscriptionStatus.expired;
-    default:
-      return SubscriptionStatus.pending;
-  }
-}
-
-DateTime _renewalDate(Map<String, dynamic> data) {
-  return _dateValue(
-        data['renewalDate'] ??
-            data['nextBillingDate'] ??
-            data['currentPeriodEnd'] ??
-            data['endDate'],
-      ) ??
-      (_dateValue(data['startDate']) ?? DateTime.now()).add(
-        const Duration(days: 30),
+  void _verifyOwner(Map<String, dynamic>? data, String uid) {
+    if (_string(data?['customerId']) != uid) {
+      throw const SubscriptionRequestException(
+        'permission-denied',
+        'Another customer subscription cannot be accessed.',
       );
+    }
+  }
+
+  String _currentUid() {
+    final uid = _firebaseAuth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw StateError('A Firebase user is required for subscriptions.');
+    }
+    return uid;
+  }
 }
 
-int _pickupAllowance(
+Map<String, Object?> _planMap(SubscriptionPlanDefinition plan) {
+  return {
+    'id': plan.id,
+    'englishName': plan.englishName,
+    'frenchName': plan.frenchName,
+    'monthlyPriceXaf': plan.monthlyPriceXaf,
+    'pickupsPerWeek': plan.pickupsPerWeek,
+    'pickupsPerMonth': plan.pickupsPerMonth,
+    'includedBagsPerPickup': plan.includedBagsPerPickup,
+    'bagsSupplied': plan.bagsSupplied,
+    'flexibleSchedule': plan.flexibleSchedule,
+    'urgentPickup': plan.urgentPickup,
+    'requiresQuotation': plan.requiresQuotation,
+    'startingPriceXaf': plan.startingPriceXaf,
+    'currency': plan.currency,
+    'pricingVersion': plan.pricingVersion,
+    'active': plan.active,
+    'displayOrder': plan.displayOrder,
+  };
+}
+
+SubscriptionPlanDefinition _planFromMap(
+  String documentId,
   Map<String, dynamic> data,
-  Map<String, dynamic>? planData,
 ) {
-  final direct = _intValue(
-    data['pickupAllowance'] ??
-        data['monthlyPickupAllowance'] ??
-        data['pickupsPerMonth'] ??
-        data['collectionAllowance'] ??
-        planData?['pickupAllowance'] ??
-        planData?['monthlyPickupAllowance'] ??
-        planData?['pickupsPerMonth'] ??
-        planData?['collectionAllowance'],
+  final id = _first([data['id'], documentId]);
+  final approved = SubscriptionPricingCatalogue.find(id);
+  return SubscriptionPlanDefinition(
+    id: id.isEmpty ? 'basic' : id,
+    englishName: _first([
+      data['englishName'],
+      data['name'],
+      approved?.englishName,
+      'Legacy plan',
+    ]),
+    frenchName: _first([
+      data['frenchName'],
+      approved?.frenchName,
+      data['name'],
+      'Forfait historique',
+    ]),
+    monthlyPriceXaf: _nullableInteger(
+      data['monthlyPriceXaf'] ??
+          data['priceXaf'] ??
+          data['amountXaf'] ??
+          approved?.monthlyPriceXaf,
+    ),
+    pickupsPerWeek: _integer(
+      data['pickupsPerWeek'] ?? approved?.pickupsPerWeek,
+    ),
+    pickupsPerMonth: _integer(
+      data['pickupsPerMonth'] ??
+          data['pickupAllowance'] ??
+          approved?.pickupsPerMonth,
+    ),
+    includedBagsPerPickup: _integer(
+      data['includedBagsPerPickup'] ?? approved?.includedBagsPerPickup,
+    ),
+    bagsSupplied:
+        data['bagsSupplied'] == true ||
+        (data['bagsSupplied'] == null && approved?.bagsSupplied == true),
+    flexibleSchedule:
+        data['flexibleSchedule'] == true ||
+        (data['flexibleSchedule'] == null &&
+            approved?.flexibleSchedule == true),
+    urgentPickup:
+        data['urgentPickup'] == true ||
+        (data['urgentPickup'] == null && approved?.urgentPickup == true),
+    requiresQuotation:
+        data['requiresQuotation'] == true ||
+        (data['requiresQuotation'] == null &&
+            approved?.requiresQuotation == true),
+    startingPriceXaf: _nullableInteger(
+      data['startingPriceXaf'] ?? approved?.startingPriceXaf,
+    ),
+    currency: _first([data['currency'], approved?.currency, 'XAF']),
+    pricingVersion: _first([
+      data['pricingVersion'],
+      approved?.pricingVersion,
+      'legacy-unknown',
+    ]),
+    active: data['active'] != false,
+    displayOrder: _integer(data['displayOrder'] ?? approved?.displayOrder),
   );
-  if (direct > 0) return direct;
-
-  final frequency = _intValue(
-    data['pickupFrequency'] ?? planData?['pickupFrequency'],
-  );
-  return frequency > 0 ? frequency * 4 : 0;
 }
 
-int _remainingCollections(
-  Map<String, dynamic> data, {
-  required int pickupAllowance,
-  required int usedPickups,
-}) {
-  final explicit = _intValue(
-    data['remainingCollections'] ??
-        data['remainingPickups'] ??
-        data['remainingPickupAllowance'],
-  );
-  if (explicit > 0) return explicit;
-  if (pickupAllowance <= 0) return 0;
-  final remaining = pickupAllowance - usedPickups;
-  return remaining < 0 ? 0 : remaining;
+SubscriptionStatus _status(Object? value) {
+  return switch (_string(value).toLowerCase()) {
+    'active' => SubscriptionStatus.active,
+    'suspended' || 'paused' => SubscriptionStatus.suspended,
+    'expired' => SubscriptionStatus.expired,
+    'cancelled' || 'canceled' => SubscriptionStatus.cancelled,
+    'pendingreview' || 'pending_review' => SubscriptionStatus.pendingReview,
+    _ => SubscriptionStatus.pendingPayment,
+  };
 }
 
-DateTime? _dateValue(dynamic value) {
+SubscriptionPaymentStatus _paymentStatus(Object? value) {
+  return switch (_string(value).toLowerCase()) {
+    'pending' || 'processing' => SubscriptionPaymentStatus.pending,
+    'paid' => SubscriptionPaymentStatus.paid,
+    'failed' => SubscriptionPaymentStatus.failed,
+    'refunded' => SubscriptionPaymentStatus.refunded,
+    _ => SubscriptionPaymentStatus.unpaid,
+  };
+}
+
+SubscriptionBillingCycle _billingCycle(Object? value) {
+  return _string(value) == 'flexibleReview'
+      ? SubscriptionBillingCycle.flexibleReview
+      : SubscriptionBillingCycle.monthly;
+}
+
+String _firebaseMessage(String code, {required String fallback}) {
+  return switch (code) {
+    'permission-denied' => 'You do not have permission for this request.',
+    'unavailable' => 'The subscription service is temporarily unavailable.',
+    'deadline-exceeded' => 'The subscription request timed out. Try again.',
+    _ => fallback,
+  };
+}
+
+Map<String, dynamic>? _map(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return null;
+}
+
+DateTime? _date(Object? value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
   if (value is String) return DateTime.tryParse(value);
@@ -297,19 +441,30 @@ DateTime? _dateValue(dynamic value) {
   return null;
 }
 
-String _stringValue(dynamic value) => value?.toString().trim() ?? '';
+String _string(Object? value) => value?.toString().trim() ?? '';
 
-String _firstNonEmpty(List<dynamic> values) {
+String _first(List<Object?> values) {
   for (final value in values) {
-    final string = _stringValue(value);
-    if (string.isNotEmpty) return string;
+    final candidate = _string(value);
+    if (candidate.isNotEmpty) return candidate;
   }
   return '';
 }
 
-int _intValue(dynamic value) {
+int _integer(Object? value) {
   if (value is int) return value;
-  if (value is num) return value.round();
-  if (value is String) return int.tryParse(value) ?? 0;
-  return 0;
+  if (value is num) return value.toInt();
+  return int.tryParse(_string(value)) ?? 0;
+}
+
+int? _nullableInteger(Object? value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(_string(value));
+}
+
+double? _double(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(_string(value));
 }

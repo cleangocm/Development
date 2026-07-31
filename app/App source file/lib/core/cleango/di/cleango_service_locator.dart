@@ -216,6 +216,7 @@ class CleanGoServiceLocator {
         firestore: firestore,
         firebaseAuth: resolvedFirebaseAuth,
         functions: functions,
+        storage: storage,
         profileImageStorage: profileImageStorage,
         repositoryFactory: repositoryFactory,
       ),

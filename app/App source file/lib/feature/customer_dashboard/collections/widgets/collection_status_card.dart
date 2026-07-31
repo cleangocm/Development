@@ -2,18 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
 
 extension CollectionStatusStyle on CollectionStatus {
-  String get label => switch (this) {
-    CollectionStatus.scheduled => 'Scheduled',
-    CollectionStatus.collectorAssigned => 'Collector Assigned',
-    CollectionStatus.inProgress => 'In Progress',
-    CollectionStatus.completed => 'Completed',
-    CollectionStatus.missed => 'Missed',
-    CollectionStatus.cancelled => 'Cancelled',
-  };
-
   Color get foreground => switch (this) {
-    CollectionStatus.scheduled => const Color(0xFF1D4ED8),
-    CollectionStatus.collectorAssigned => const Color(0xFF6D28D9),
+    CollectionStatus.quotationRequested => const Color(0xFF92400E),
+    CollectionStatus.pending => const Color(0xFFB45309),
+    CollectionStatus.confirmed => const Color(0xFF1D4ED8),
+    CollectionStatus.assigned => const Color(0xFF6D28D9),
     CollectionStatus.inProgress => const Color(0xFFB45309),
     CollectionStatus.completed => const Color(0xFF15803D),
     CollectionStatus.missed => const Color(0xFFB91C1C),
@@ -21,8 +14,10 @@ extension CollectionStatusStyle on CollectionStatus {
   };
 
   Color get background => switch (this) {
-    CollectionStatus.scheduled => const Color(0xFFDBEAFE),
-    CollectionStatus.collectorAssigned => const Color(0xFFEDE9FE),
+    CollectionStatus.quotationRequested => const Color(0xFFFEF3C7),
+    CollectionStatus.pending => const Color(0xFFFFF7ED),
+    CollectionStatus.confirmed => const Color(0xFFDBEAFE),
+    CollectionStatus.assigned => const Color(0xFFEDE9FE),
     CollectionStatus.inProgress => const Color(0xFFFEF3C7),
     CollectionStatus.completed => const Color(0xFFDDF7E5),
     CollectionStatus.missed => const Color(0xFFFEE2E2),

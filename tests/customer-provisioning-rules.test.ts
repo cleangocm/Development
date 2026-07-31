@@ -11,7 +11,7 @@ import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
 
 let testEnv: RulesTestEnvironment;
 
-const projectId = 'cleango-rules-test';
+const projectId = 'clean-go-150fb';
 const customerA = 'customer-a';
 const customerB = 'customer-b';
 const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST?.split(':') ?? [
@@ -28,7 +28,7 @@ beforeAll(async () => {
       rules: readFileSync(resolve('firestore.rules'), 'utf8'),
     },
   });
-});
+}, 60_000);
 
 afterEach(async () => testEnv.clearFirestore());
 afterAll(async () => testEnv.cleanup());

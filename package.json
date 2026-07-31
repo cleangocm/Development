@@ -4,6 +4,9 @@
   "scripts": {
     "test:scheduling": "vitest run tests/scheduling.test.ts",
     "test:rules": "firebase emulators:exec --only firestore,storage \"vitest run tests/security-rules.test.ts\"",
+    "test:collection-rules": "firebase emulators:exec --only firestore \"vitest run tests/collection-booking-rules.test.ts --pool=forks --maxWorkers=1 --testTimeout=30000\"",
+    "test:collection-storage-rules": "firebase emulators:exec --only storage \"vitest run tests/collection-booking-storage-rules.test.ts --pool=forks --maxWorkers=1\"",
+    "test:booking-rules": "npm run test:collection-rules && npm run test:collection-storage-rules",
     "test:launch": "vitest run tests/launch-readiness.test.ts",
     "test:day12": "npm run test:scheduling && npm run test:launch"
   },

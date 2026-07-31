@@ -23,9 +23,9 @@ class SubscriptionCard extends StatelessWidget {
           const SizedBox(height: 10),
           _DetailRow(
             label: 'Renewal date',
-            value: activeSubscription == null
+            value: activeSubscription?.renewalDate == null
                 ? 'Not scheduled'
-                : _dateLabel(activeSubscription.renewalDate),
+                : _dateLabel(activeSubscription!.renewalDate!),
           ),
           const SizedBox(height: 10),
           _DetailRow(
@@ -127,7 +127,9 @@ String _planLabel(SubscriptionPlan plan) {
   return switch (plan) {
     SubscriptionPlan.basic => 'Basic Plan',
     SubscriptionPlan.standard => 'Standard Plan',
+    SubscriptionPlan.popular => 'Popular Plan',
     SubscriptionPlan.premium => 'Premium Plan',
+    SubscriptionPlan.apartmentsHotels => 'Apartments & Hotels',
     SubscriptionPlan.business => 'Business Plan',
     SubscriptionPlan.enterprise => 'Enterprise Plan',
   };

@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_status_card.dart';
 
 class CollectionHistoryCard extends StatelessWidget {
-  const CollectionHistoryCard({required this.collection, super.key});
+  const CollectionHistoryCard({
+    required this.collection,
+    required this.onViewDetails,
+    super.key,
+  });
 
   final WasteCollection collection;
+  final VoidCallback onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +29,7 @@ class CollectionHistoryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  _dateLabel(collection.scheduledDate),
+                  _dateLabel(collection),
                   style: const TextStyle(
                     color: Color(0xFF0F172A),
                     fontSize: 17,
@@ -39,32 +45,25 @@ class CollectionHistoryCard extends StatelessWidget {
           const SizedBox(height: 9),
           _HistoryDetail(
             icon: Icons.location_on_outlined,
-            text: collection.address.formattedAddress,
+            text: collection.addressSnapshot.formattedAddress,
           ),
           const SizedBox(height: 9),
           _HistoryDetail(
             icon: Icons.delete_outline,
-            text: _wasteTypeLabel(collection.wasteType),
+            text: collection.wasteCategory.label,
+          ),
+          const SizedBox(height: 9),
+          _HistoryDetail(
+            icon: Icons.payments_outlined,
+            text:
+                '${_priceLabel(collection)} - '
+                '${collection.paymentStatus.label}',
           ),
           const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              OutlinedButton(
-                onPressed: () {},
-                child: const Text('View Details'),
-              ),
-              if (collection.status == CollectionStatus.missed)
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.report_problem_outlined),
-                  label: const Text('Report Missed Pickup'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFB91C1C),
-                  ),
-                ),
-            ],
+          OutlinedButton.icon(
+            onPressed: onViewDetails,
+            icon: const Icon(Icons.visibility_outlined),
+            label: const Text('View details'),
           ),
         ],
       ),
@@ -92,35 +91,15 @@ class _HistoryDetail extends StatelessWidget {
   }
 }
 
-String _dateLabel(DateTime date) {
-  return '${date.day} ${_monthName(date.month)} ${date.year}';
+String _dateLabel(WasteCollection collection) {
+  final scheduledDate = collection.scheduledDate;
+  return scheduledDate == null
+      ? 'Schedule pending'
+      : DateFormat('d MMMM yyyy').format(scheduledDate);
 }
 
-String _wasteTypeLabel(WasteType wasteType) {
-  return switch (wasteType) {
-    WasteType.household => 'Household waste',
-    WasteType.recyclable => 'Recyclable waste',
-    WasteType.organic => 'Organic waste',
-    WasteType.commercial => 'Commercial waste',
-    WasteType.medical => 'Medical waste',
-    WasteType.bulky => 'Bulky waste',
-  };
-}
-
-String _monthName(int month) {
-  const names = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-  return names[month - 1];
+String _priceLabel(WasteCollection collection) {
+  final amount = collection.displayAmount;
+  if (amount == null) return 'Quotation pending';
+  return '${NumberFormat.decimalPattern('fr').format(amount)} FCFA';
 }

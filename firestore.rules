@@ -45,6 +45,411 @@ service cloud.firestore {
       return isCollector() && resource.data.collectorId == request.auth.uid;
     }
 
+    function exactPlanKeys(plan) {
+      return plan is map
+        && plan.keys().hasAll([
+          'id', 'englishName', 'frenchName', 'monthlyPriceXaf',
+          'pickupsPerWeek', 'pickupsPerMonth', 'includedBagsPerPickup',
+          'bagsSupplied', 'flexibleSchedule', 'urgentPickup',
+          'requiresQuotation', 'startingPriceXaf', 'currency',
+          'pricingVersion', 'active', 'displayOrder'
+        ])
+        && plan.keys().hasOnly([
+          'id', 'englishName', 'frenchName', 'monthlyPriceXaf',
+          'pickupsPerWeek', 'pickupsPerMonth', 'includedBagsPerPickup',
+          'bagsSupplied', 'flexibleSchedule', 'urgentPickup',
+          'requiresQuotation', 'startingPriceXaf', 'currency',
+          'pricingVersion', 'active', 'displayOrder'
+        ])
+        && plan.currency == 'XAF'
+        && plan.pricingVersion == 'approved-v1-2026-07'
+        && plan.active == true;
+    }
+
+    function validApprovedPlan(plan) {
+      return exactPlanKeys(plan)
+        && ((plan.id == 'basic'
+            && plan.englishName == 'Basic Plan'
+            && plan.frenchName == 'Forfait Basique'
+            && plan.monthlyPriceXaf == 5000
+            && plan.pickupsPerWeek == 1
+            && plan.pickupsPerMonth == 4
+            && plan.includedBagsPerPickup == 2
+            && plan.bagsSupplied == true
+            && plan.flexibleSchedule == false
+            && plan.urgentPickup == false
+            && plan.requiresQuotation == false
+            && plan.startingPriceXaf == null
+            && plan.displayOrder == 1)
+          || (plan.id == 'standard'
+            && plan.englishName == 'Standard'
+            && plan.frenchName == 'Standard'
+            && plan.monthlyPriceXaf == 8500
+            && plan.pickupsPerWeek == 2
+            && plan.pickupsPerMonth == 8
+            && plan.includedBagsPerPickup == 2
+            && plan.bagsSupplied == false
+            && plan.flexibleSchedule == false
+            && plan.urgentPickup == false
+            && plan.requiresQuotation == false
+            && plan.startingPriceXaf == null
+            && plan.displayOrder == 2)
+          || (plan.id == 'popular'
+            && plan.englishName == 'Popular'
+            && plan.frenchName == 'Populaire'
+            && plan.monthlyPriceXaf == 11000
+            && plan.pickupsPerWeek == 2
+            && plan.pickupsPerMonth == 8
+            && plan.includedBagsPerPickup == 4
+            && plan.bagsSupplied == false
+            && plan.flexibleSchedule == false
+            && plan.urgentPickup == false
+            && plan.requiresQuotation == false
+            && plan.startingPriceXaf == null
+            && plan.displayOrder == 3)
+          || (plan.id == 'premium'
+            && plan.englishName == 'Premium'
+            && plan.frenchName == 'Premium'
+            && plan.monthlyPriceXaf == 16500
+            && plan.pickupsPerWeek == 3
+            && plan.pickupsPerMonth == 12
+            && plan.includedBagsPerPickup == 6
+            && plan.bagsSupplied == false
+            && plan.flexibleSchedule == false
+            && plan.urgentPickup == false
+            && plan.requiresQuotation == false
+            && plan.startingPriceXaf == null
+            && plan.displayOrder == 4)
+          || (plan.id == 'apartments_hotels'
+            && plan.englishName == 'Apartments & Hotels'
+            && plan.frenchName == 'Appartements & Hôtels'
+            && plan.monthlyPriceXaf == null
+            && plan.pickupsPerWeek == 0
+            && plan.pickupsPerMonth == 0
+            && plan.includedBagsPerPickup == 10
+            && plan.bagsSupplied == false
+            && plan.flexibleSchedule == true
+            && plan.urgentPickup == true
+            && plan.requiresQuotation == true
+            && plan.startingPriceXaf == 35000
+            && plan.displayOrder == 5));
+    }
+
+    function validSubscriptionAddress(data) {
+      let address = get(
+        /databases/$(database)/documents/addresses/$(data.serviceAddressId)
+      ).data;
+      let snapshot = data.serviceAddressSnapshot;
+      let addressZone = address.get(
+        'serviceZone',
+        address.get('serviceZoneId', '')
+      );
+      return data.serviceAddressId is string
+        && address.customerId == request.auth.uid
+        && addressZone == 'yaounde'
+        && address.get('isWithinServiceArea', false) == true
+        && snapshot is map
+        && snapshot.keys().hasAll([
+          'label', 'addressLine', 'city', 'district', 'latitude', 'longitude'
+        ])
+        && snapshot.keys().hasOnly([
+          'label', 'addressLine', 'city', 'district', 'latitude', 'longitude'
+        ])
+        && snapshot.label == address.get('label', 'Saved address')
+        && snapshot.addressLine == address.get(
+          'addressLine',
+          address.get('street', address.get('address', ''))
+        )
+        && snapshot.city == address.get('city', 'Yaounde')
+        && snapshot.district == address.get(
+          'district',
+          address.get('neighborhood', address.get('region', ''))
+        )
+        && snapshot.latitude == address.get('latitude', null)
+        && snapshot.longitude == address.get('longitude', null);
+    }
+
+    function validNewSubscription(subscriptionId) {
+      let data = request.resource.data;
+      let plan = data.planSnapshot;
+      return signedIn()
+        && data.keys().hasAll([
+          'idempotencyKey', 'customerId', 'planId', 'planSnapshot',
+          'serviceAddressId', 'serviceAddressSnapshot', 'status',
+          'paymentStatus', 'startDate', 'endDate', 'billingCycle',
+          'includedPickupsPerMonth', 'includedBagsPerPickup', 'usedPickups',
+          'extraBagRate', 'createdAt', 'updatedAt', 'cancelledAt',
+          'pricingVersion'
+        ])
+        && data.keys().hasOnly([
+          'idempotencyKey', 'customerId', 'planId', 'planSnapshot',
+          'serviceAddressId', 'serviceAddressSnapshot', 'status',
+          'paymentStatus', 'startDate', 'endDate', 'billingCycle',
+          'includedPickupsPerMonth', 'includedBagsPerPickup', 'usedPickups',
+          'extraBagRate', 'createdAt', 'updatedAt', 'cancelledAt',
+          'pricingVersion'
+        ])
+        && subscriptionId.matches('subscription_[0-9a-f]{64}')
+        && data.idempotencyKey == subscriptionId
+        && data.customerId == request.auth.uid
+        && validSubscriptionAddress(data)
+        && validApprovedPlan(plan)
+        && data.planId == plan.id
+        && data.status == (plan.requiresQuotation
+          ? 'pendingReview'
+          : 'pendingPayment')
+        && data.paymentStatus == 'unpaid'
+        && data.startDate == null
+        && data.endDate == null
+        && data.billingCycle == (plan.requiresQuotation
+          ? 'flexibleReview'
+          : 'monthly')
+        && data.includedPickupsPerMonth == plan.pickupsPerMonth
+        && data.includedBagsPerPickup == plan.includedBagsPerPickup
+        && data.usedPickups == 0
+        && data.extraBagRate == 500
+        && data.cancelledAt == null
+        && data.pricingVersion == 'approved-v1-2026-07'
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function validCollectionAddress(data) {
+      let address = get(
+        /databases/$(database)/documents/addresses/$(data.addressId)
+      ).data;
+      let snapshot = data.addressSnapshot;
+      let addressZone = address.get(
+        'serviceZone',
+        address.get('serviceZoneId', '')
+      );
+      return data.addressId is string
+        && address.customerId == request.auth.uid
+        && addressZone == 'yaounde'
+        && address.get('isWithinServiceArea', false) == true
+        && data.serviceZone == addressZone
+        && snapshot is map
+        && snapshot.keys().hasAll([
+          'label', 'addressLine', 'city', 'district', 'latitude', 'longitude'
+        ])
+        && snapshot.keys().hasOnly([
+          'label', 'addressLine', 'city', 'district', 'latitude', 'longitude'
+        ])
+        && snapshot.label == address.get('label', 'Saved address')
+        && snapshot.addressLine == address.get(
+          'addressLine',
+          address.get('street', address.get('address', ''))
+        )
+        && snapshot.city == address.get('city', 'Yaounde')
+        && snapshot.district == address.get(
+          'district',
+          address.get('neighborhood', address.get('region', ''))
+        )
+        && snapshot.latitude == address.get('latitude', null)
+        && snapshot.longitude == address.get('longitude', null);
+    }
+
+    function exactPricingKeys(pricing) {
+      return pricing is map
+        && pricing.keys().hasAll([
+          'currency', 'baseAmount', 'includedBagCount', 'extraBagCount',
+          'extraBagRate', 'extraBagAmount', 'serviceFee', 'discount',
+          'totalAmount', 'pricingVersion', 'calculationSource'
+        ])
+        && pricing.keys().hasOnly([
+          'currency', 'baseAmount', 'includedBagCount', 'extraBagCount',
+          'extraBagRate', 'extraBagAmount', 'serviceFee', 'discount',
+          'totalAmount', 'pricingVersion', 'calculationSource'
+        ])
+        && pricing.currency == 'XAF'
+        && pricing.pricingVersion == 'approved-v1-2026-07';
+    }
+
+    function validBagCountPricing(data) {
+      let pricing = data.pricingSnapshot;
+      let amount = data.declaredBagCount * 500;
+      return exactPricingKeys(pricing)
+        && pricing.baseAmount == amount
+        && pricing.includedBagCount == 0
+        && pricing.extraBagCount == 0
+        && pricing.extraBagRate == 500
+        && pricing.extraBagAmount == 0
+        && pricing.serviceFee == 0
+        && pricing.discount == 0
+        && pricing.totalAmount == amount
+        && pricing.calculationSource == 'approvedOneTimeBagRate'
+        && data.includedBagCount == 0
+        && data.extraBagCount == 0
+        && data.extraBagRate == 500
+        && data.extraBagAmount == 0;
+    }
+
+    function validPhotoQuotePricing(data) {
+      let pricing = data.pricingSnapshot;
+      return exactPricingKeys(pricing)
+        && pricing.baseAmount == null
+        && pricing.includedBagCount == 0
+        && pricing.extraBagCount == 0
+        && pricing.extraBagRate == 500
+        && pricing.extraBagAmount == 0
+        && pricing.serviceFee == 0
+        && pricing.discount == 0
+        && pricing.totalAmount == null
+        && pricing.calculationSource == 'pendingAdminQuotation'
+        && data.includedBagCount == 0
+        && data.extraBagCount == 0
+        && data.extraBagRate == 500
+        && data.extraBagAmount == 0;
+    }
+
+    function validQuotePhotoPath(path, collectionId) {
+      return path is string
+        && path.matches(
+          '^collection-quotes/'
+            + request.auth.uid
+            + '/'
+            + collectionId
+            + '/quote_[1-4]_[0-9a-f]{16}\\.(jpg|png|webp)$'
+        );
+    }
+
+    function validQuotePhotoPaths(paths, collectionId) {
+      return paths is list
+        && paths.size() >= 1
+        && paths.size() <= 4
+        && validQuotePhotoPath(paths[0], collectionId)
+        && (paths.size() < 2
+          || (validQuotePhotoPath(paths[1], collectionId)
+            && paths[1] != paths[0]))
+        && (paths.size() < 3
+          || (validQuotePhotoPath(paths[2], collectionId)
+            && paths[2] != paths[0]
+            && paths[2] != paths[1]))
+        && (paths.size() < 4
+          || (validQuotePhotoPath(paths[3], collectionId)
+            && paths[3] != paths[0]
+            && paths[3] != paths[1]
+            && paths[3] != paths[2]));
+    }
+
+    function validBagCountCollection(data) {
+      return data.bookingMode == 'oneTimeBagCount'
+        && data.collectionType == 'oneTime'
+        && data.scheduleType == 'customerSelected'
+        && data.scheduledDate is timestamp
+        && data.scheduledDate > request.time
+        && data.scheduledTimeWindow in [
+          '08:00-10:00', '10:00-12:00', '14:00-16:00', '16:00-18:00'
+        ]
+        && data.frequency == 'once'
+        && data.status == 'pending'
+        && data.declaredBagCount is int
+        && data.declaredBagCount >= 1
+        && data.declaredBagCount <= 50
+        && data.quotationStatus == 'notRequired'
+        && data.quotedAmount == null
+        && data.quotationReviewedBy == null
+        && data.quotationReviewedAt == null
+        && data.quotationAcceptedAt == null
+        && data.photoStoragePaths is list
+        && data.photoStoragePaths.size() == 0
+        && validBagCountPricing(data);
+    }
+
+    function validPhotoQuoteCollection(data, collectionId) {
+      return data.bookingMode == 'oneTimePhotoQuote'
+        && data.collectionType == 'oneTime'
+        && data.scheduleType == 'quotationPending'
+        && data.scheduledDate == null
+        && data.scheduledTimeWindow == null
+        && data.frequency == 'once'
+        && data.status == 'quotationRequested'
+        && data.declaredBagCount == null
+        && data.quotationStatus == 'requested'
+        && data.quotedAmount == null
+        && data.quotationReviewedBy == null
+        && data.quotationReviewedAt == null
+        && data.quotationAcceptedAt == null
+        && validQuotePhotoPaths(data.photoStoragePaths, collectionId)
+        && validPhotoQuotePricing(data);
+    }
+
+    function validNewCollection(collectionId) {
+      let data = request.resource.data;
+      return signedIn()
+        && data.keys().hasAll([
+          'idempotencyKey', 'customerId', 'addressId', 'addressSnapshot',
+          'serviceZone', 'bookingMode', 'collectionType', 'wasteCategory',
+          'scheduleType', 'scheduledDate', 'scheduledTimeWindow', 'frequency',
+          'status', 'paymentStatus', 'pricing', 'pricingSnapshot',
+          'declaredBagCount', 'includedBagCount', 'extraBagCount',
+          'extraBagRate', 'extraBagAmount', 'quotationStatus', 'quotedAmount',
+          'quotationReviewedBy', 'quotationReviewedAt', 'quotationAcceptedAt',
+          'photoStoragePaths', 'subscriptionId', 'includedInSubscription',
+          'customerNotes', 'assignedWorkerId', 'createdAt', 'updatedAt',
+          'cancelledAt', 'completedAt'
+        ])
+        && data.keys().hasOnly([
+          'idempotencyKey', 'customerId', 'addressId', 'addressSnapshot',
+          'serviceZone', 'bookingMode', 'collectionType', 'wasteCategory',
+          'scheduleType', 'scheduledDate', 'scheduledTimeWindow', 'frequency',
+          'status', 'paymentStatus', 'pricing', 'pricingSnapshot',
+          'declaredBagCount', 'includedBagCount', 'extraBagCount',
+          'extraBagRate', 'extraBagAmount', 'quotationStatus', 'quotedAmount',
+          'quotationReviewedBy', 'quotationReviewedAt', 'quotationAcceptedAt',
+          'photoStoragePaths', 'subscriptionId', 'includedInSubscription',
+          'customerNotes', 'assignedWorkerId', 'createdAt', 'updatedAt',
+          'cancelledAt', 'completedAt'
+        ])
+        && collectionId.matches('collection_[0-9a-f]{64}')
+        && data.idempotencyKey == collectionId
+        && data.customerId == request.auth.uid
+        && validCollectionAddress(data)
+        && data.wasteCategory in ['household', 'officeBusiness', 'other']
+        && data.paymentStatus == 'unpaid'
+        && data.pricing == data.pricingSnapshot
+        && data.customerNotes is string
+        && data.customerNotes.size() <= 500
+        && data.subscriptionId == null
+        && data.includedInSubscription == false
+        && data.assignedWorkerId == null
+        && data.cancelledAt == null
+        && data.completedAt == null
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && (validBagCountCollection(data)
+          || validPhotoQuoteCollection(data, collectionId));
+    }
+
+    function validCustomerCollectionCancellation() {
+      return signedIn()
+        && resource.data.customerId == request.auth.uid
+        && resource.data.status in ['quotationRequested', 'pending', 'confirmed']
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.cancelledAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'cancelledAt', 'updatedAt'
+        ]);
+    }
+
+    function validCustomerQuotationAcceptance() {
+      return signedIn()
+        && resource.data.customerId == request.auth.uid
+        && resource.data.bookingMode == 'oneTimePhotoQuote'
+        && resource.data.quotationStatus == 'quoted'
+        && resource.data.quotedAmount is int
+        && resource.data.quotedAmount > 0
+        && resource.data.paymentStatus == 'unpaid'
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.quotationStatus == 'accepted'
+        && request.resource.data.quotationAcceptedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'quotationStatus', 'quotationAcceptedAt', 'updatedAt'
+        ]);
+    }
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
@@ -144,11 +549,21 @@ service cloud.firestore {
 
     match /subscriptions/{subscriptionId} {
       allow read: if isAdmin() || ownsExistingCustomerRecord();
-      allow create: if isAdmin()
-        || (ownsNewCustomerRecord() && request.resource.data.status == 'pending');
+      allow create: if isAdmin() || validNewSubscription(subscriptionId);
       allow update, delete: if isAdmin();
     }
 
+    match /collections/{collectionId} {
+      allow create: if isAdmin() || validNewCollection(collectionId);
+      allow read: if isAdmin()
+        || ownsExistingCustomerRecord()
+        || (isCollector()
+          && resource.data.assignedWorkerId == request.auth.uid);
+      allow update: if isAdmin()
+        || validCustomerCollectionCancellation()
+        || validCustomerQuotationAcceptance();
+      allow delete: if false;
+    }
     match /pickups/{pickupId} {
       allow create: if ownsNewCustomerRecord()
         && request.resource.data.status == 'scheduled'
