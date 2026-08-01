@@ -433,6 +433,11 @@ class FirebaseCollectionRepository
       includedInSubscription: data['includedInSubscription'] == true,
       customerNotes: _string(data['customerNotes']),
       assignedWorkerId: _nullableString(data['assignedWorkerId']),
+      onTheWayAt: _date(data['onTheWayAt']),
+      arrivedAt: _date(data['arrivedAt']),
+      startedAt: _date(data['startedAt']),
+      missedAt: _date(data['missedAt']),
+      missedReason: _nullableString(data['missedReason']),
       createdAt: createdAt,
       updatedAt: _date(data['updatedAt']) ?? createdAt,
       cancelledAt: _date(data['cancelledAt']),
@@ -557,10 +562,9 @@ CollectionStatus _collectionStatus(Object? value) {
     'assigned' ||
     'collectorassigned' ||
     'collector_assigned' => CollectionStatus.assigned,
-    'inprogress' ||
-    'in_progress' ||
-    'en_route' ||
-    'arrived' => CollectionStatus.inProgress,
+    'ontheway' || 'on_the_way' || 'en_route' => CollectionStatus.onTheWay,
+    'arrived' => CollectionStatus.arrived,
+    'inprogress' || 'in_progress' => CollectionStatus.inProgress,
     'completed' => CollectionStatus.completed,
     'missed' => CollectionStatus.missed,
     'cancelled' || 'canceled' => CollectionStatus.cancelled,

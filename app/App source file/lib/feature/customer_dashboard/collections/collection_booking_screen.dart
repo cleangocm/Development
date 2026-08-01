@@ -5,8 +5,10 @@ import 'package:ultrawash/core/cleango/collections/collection_booking_service.da
 import 'package:ultrawash/core/cleango/collections/collection_pricing_service.dart';
 import 'package:ultrawash/core/cleango/models/address.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
+import 'package:ultrawash/core/cleango/payments/payment_request_context.dart';
 import 'package:ultrawash/core/cleango/storage/collection_quote_image_storage.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/controller/collections_tab_controller.dart';
+import 'package:ultrawash/feature/customer_dashboard/payments/payment_method_screen.dart';
 
 class CollectionBookingScreen extends StatefulWidget {
   const CollectionBookingScreen({required this.controller, super.key});
@@ -254,16 +256,30 @@ class _CollectionBookingScreenState extends State<CollectionBookingScreen> {
                 ? 'Your quotation request has been submitted. CLEANGO will review the photos before setting a final price. No payment has been requested.'
                 : result.wasDuplicate
                 ? 'This request was already received. No duplicate booking was created.'
-                : 'Your unpaid collection request is now visible in collection history.',
+                : 'Your collection request was created. Continue to choose cash, MTN Mobile Money, or Orange Money. Unavailable methods will not create a payment.',
           ),
           actions: [
             FilledButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done'),
+              child: Text(
+                result.collection.isQuotationPending ? 'Done' : 'Continue',
+              ),
             ),
           ],
         ),
       );
+      if (!mounted) return;
+      if (!result.collection.isQuotationPending) {
+        await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => PaymentMethodScreen(
+              paymentContext: PaymentRequestContext.forCollection(
+                result.collection,
+              ),
+            ),
+          ),
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) _showMessage(_message(error));

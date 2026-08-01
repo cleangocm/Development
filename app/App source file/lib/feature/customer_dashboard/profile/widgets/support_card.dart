@@ -1,21 +1,36 @@
 import 'package:flutter/material.dart';
 
 class SupportCard extends StatelessWidget {
-  const SupportCard({super.key});
+  const SupportCard({
+    required this.onContactSupport,
+    required this.onReportMissedCollection,
+    required this.onFaq,
+    super.key,
+  });
+
+  final VoidCallback onContactSupport;
+  final VoidCallback onReportMissedCollection;
+  final VoidCallback onFaq;
 
   @override
   Widget build(BuildContext context) {
+    final actions = <_ActionItem>[
+      _ActionItem(
+        icon: Icons.chat_outlined,
+        label: 'Contact Support',
+        onTap: onContactSupport,
+      ),
+      _ActionItem(
+        icon: Icons.report_problem_outlined,
+        label: 'Report Missed Collection',
+        onTap: onReportMissedCollection,
+      ),
+      _ActionItem(icon: Icons.help_outline, label: 'FAQs', onTap: onFaq),
+    ];
     return _ActionCard(
       title: 'Support',
       icon: Icons.support_agent,
-      actions: const [
-        _ActionItem(icon: Icons.chat_outlined, label: 'Contact Support'),
-        _ActionItem(
-          icon: Icons.report_problem_outlined,
-          label: 'Report Missed Collection',
-        ),
-        _ActionItem(icon: Icons.help_outline, label: 'FAQs'),
-      ],
+      actions: actions,
     );
   }
 }
@@ -66,7 +81,7 @@ class _ActionCard extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
+              onTap: action.onTap,
             ),
         ],
       ),
@@ -75,8 +90,13 @@ class _ActionCard extends StatelessWidget {
 }
 
 class _ActionItem {
-  const _ActionItem({required this.icon, required this.label});
+  const _ActionItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback onTap;
 }

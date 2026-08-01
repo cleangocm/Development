@@ -5,12 +5,14 @@ class PaymentSummaryCard extends StatelessWidget {
     required this.outstandingBalanceXaf,
     required this.paidThisMonthXaf,
     required this.subscriptionStatus,
+    this.onReviewOutstanding,
     super.key,
   });
 
   final int outstandingBalanceXaf;
   final int paidThisMonthXaf;
   final String subscriptionStatus;
+  final VoidCallback? onReviewOutstanding;
 
   @override
   Widget build(BuildContext context) {
@@ -61,16 +63,18 @@ class PaymentSummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.payments_outlined),
-            label: const Text('Pay Now'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF16A34A),
-              foregroundColor: Colors.white,
+          if (outstandingBalanceXaf > 0 && onReviewOutstanding != null) ...[
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: onReviewOutstanding,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Review pending payments'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF16A34A),
+                foregroundColor: Colors.white,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

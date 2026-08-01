@@ -6,4 +6,8 @@ abstract interface class PaymentRepository {
   Future<Payment?> getPaymentById(String paymentId);
 
   Future<int> getOutstandingBalanceXaf(String customerId);
+
+  Future<PaymentCreationResult> createPaymentIntent(
+    PaymentIntentRequest request,
+  );
 }

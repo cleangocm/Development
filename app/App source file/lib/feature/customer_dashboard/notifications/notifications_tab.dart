@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/models/notification.dart';
+import 'package:ultrawash/core/cleango/notifications/notification_destination.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/controller/notifications_tab_controller.dart';
+import 'package:ultrawash/feature/customer_dashboard/notifications/notification_navigation.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/empty_notifications_state.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/notification_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/notification_filter_chips.dart';
 import 'package:ultrawash/feature/customer_dashboard/notifications/widgets/notification_summary_card.dart';
 
 class NotificationsTab extends StatefulWidget {
-  const NotificationsTab({super.key, NotificationsTabController? controller})
-    : _controller = controller;
+  const NotificationsTab({
+    super.key,
+    NotificationsTabController? controller,
+    this.refreshToken = 0,
+  }) : _controller = controller;
 
   final NotificationsTabController? _controller;
+  final int refreshToken;
 
   @override
   State<NotificationsTab> createState() => _NotificationsTabState();
@@ -21,6 +28,14 @@ class _NotificationsTabState extends State<NotificationsTab> {
   late Future<NotificationsTabViewData> _notificationsData = _controller.load();
 
   NotificationFilter selectedFilter = NotificationFilter.all;
+
+  @override
+  void didUpdateWidget(covariant NotificationsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _notificationsData = _controller.load();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +60,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
           },
           onMarkAsRead: _markAsRead,
           onMarkAllAsRead: _markAllAsRead,
+          onOpenNotification: _openNotification,
         );
       },
     );
@@ -56,8 +72,30 @@ class _NotificationsTabState extends State<NotificationsTab> {
   }
 
   Future<void> _markAllAsRead() async {
-    await _controller.markAllAsRead();
-    _reload();
+    try {
+      await _controller.markAllAsRead();
+      _reload();
+    } catch (_) {
+      _showMessage('Unable to update notifications. Please try again.');
+    }
+  }
+
+  Future<void> _openNotification(CleanGoNotification notification) async {
+    await NotificationNavigator.open(
+      context,
+      NotificationDestination.fromNotification(notification),
+      openNotificationHistory: () {
+        if (!mounted) return;
+        setState(() => selectedFilter = NotificationFilter.all);
+      },
+    );
+    if (mounted) _reload();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _reload() {
@@ -74,6 +112,7 @@ class _NotificationsContent extends StatelessWidget {
     required this.onFilterSelected,
     required this.onMarkAsRead,
     required this.onMarkAllAsRead,
+    required this.onOpenNotification,
   });
 
   final NotificationsTabViewData data;
@@ -81,6 +120,7 @@ class _NotificationsContent extends StatelessWidget {
   final ValueChanged<NotificationFilter> onFilterSelected;
   final ValueChanged<String> onMarkAsRead;
   final VoidCallback onMarkAllAsRead;
+  final ValueChanged<CleanGoNotification> onOpenNotification;
 
   @override
   Widget build(BuildContext context) {
@@ -154,7 +194,7 @@ class _NotificationsContent extends StatelessWidget {
                       NotificationCard(
                         notification: notification,
                         onMarkAsRead: () => onMarkAsRead(notification.id),
-                        onAction: () {},
+                        onAction: () => onOpenNotification(notification),
                       ),
                       const SizedBox(height: 14),
                     ],
@@ -172,7 +212,7 @@ class _NotificationsContent extends StatelessWidget {
                       child: NotificationCard(
                         notification: notification,
                         onMarkAsRead: () => onMarkAsRead(notification.id),
-                        onAction: () {},
+                        onAction: () => onOpenNotification(notification),
                       ),
                     ),
                 ],

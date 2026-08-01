@@ -1,8 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:ultrawash/core/cleango/collectors/collector.dart';
+import 'package:ultrawash/core/cleango/collectors/collector_access_policy.dart';
 import 'package:ultrawash/core/cleango/onboarding/customer_address_service.dart';
 import 'package:ultrawash/core/cleango/onboarding/customer_provisioning_service.dart';
 import 'package:ultrawash/core/cleango/onboarding/firebase_customer_provisioning_store.dart';
+import 'package:ultrawash/core/cleango/repositories/firebase/firebase_collector_repository.dart';
+import 'package:ultrawash/feature/collector_dashboard/collector_access_status_screen.dart';
+import 'package:ultrawash/feature/collector_dashboard/collector_dashboard_screen.dart';
 import 'package:ultrawash/feature/customer_dashboard/customer_dashboard_shell.dart';
 import 'package:ultrawash/feature/mobile_onboarding/address_onboarding_screen.dart';
 
@@ -14,54 +19,95 @@ class CustomerOnboardingGate extends StatefulWidget {
 }
 
 class _CustomerOnboardingGateState extends State<CustomerOnboardingGate> {
-  late Future<_GateDestination> _destination;
+  late Future<_GateResolution> _resolution;
 
   @override
   void initState() {
     super.initState();
-    _destination = _resolve();
+    _resolution = _resolve();
   }
 
-  Future<_GateDestination> _resolve() async {
+  Future<_GateResolution> _resolve() async {
+    final collector = await FirebaseCollectorRepository().getCurrentCollector();
+    switch (CollectorAccessPolicy.resolve(collector)) {
+      case CollectorAccessDestination.collectorDashboard:
+        await FirebaseAuth.instance.currentUser?.getIdToken(true);
+        return const _GateResolution(_GateDestination.collectorDashboard);
+      case CollectorAccessDestination.pendingReview:
+      case CollectorAccessDestination.blocked:
+        return _GateResolution(
+          _GateDestination.collectorAccessStatus,
+          collector: collector,
+        );
+      case CollectorAccessDestination.customer:
+        break;
+    }
+
     final provisioning = CustomerProvisioningService(
       store: FirebaseCustomerProvisioningStore(),
       firebaseAuth: FirebaseAuth.instance,
     );
     final result = await provisioning.provisionCurrentUser();
-    if (result.isDisabled) return _GateDestination.disabled;
+    if (result.isDisabled) {
+      return const _GateResolution(_GateDestination.disabled);
+    }
 
     final state = await CustomerAddressService().readState();
-    if (state.isDisabled) return _GateDestination.disabled;
-    return state.isComplete
-        ? _GateDestination.dashboard
-        : _GateDestination.address;
+    if (state.isDisabled) {
+      return const _GateResolution(_GateDestination.disabled);
+    }
+    return _GateResolution(
+      state.isComplete ? _GateDestination.dashboard : _GateDestination.address,
+    );
   }
 
-  void _retry() => setState(() => _destination = _resolve());
+  void _retry() => setState(() => _resolution = _resolve());
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_GateDestination>(
-      future: _destination,
+    return FutureBuilder<_GateResolution>(
+      future: _resolution,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.hasError) return _GateError(onRetry: _retry);
-        return switch (snapshot.data) {
+        if (snapshot.hasError || snapshot.data == null) {
+          return _GateError(onRetry: _retry);
+        }
+
+        final resolution = snapshot.data!;
+        return switch (resolution.destination) {
           _GateDestination.dashboard => const CleanGoCustomerDashboardShell(),
           _GateDestination.address => const AddressOnboardingScreen(),
           _GateDestination.disabled => const _DisabledAccountScreen(),
-          null => _GateError(onRetry: _retry),
+          _GateDestination.collectorDashboard =>
+            const CollectorDashboardScreen(),
+          _GateDestination.collectorAccessStatus => CollectorAccessStatusScreen(
+            profile: resolution.collector!,
+            onRefresh: _retry,
+          ),
         };
       },
     );
   }
 }
 
-enum _GateDestination { dashboard, address, disabled }
+enum _GateDestination {
+  dashboard,
+  address,
+  disabled,
+  collectorDashboard,
+  collectorAccessStatus,
+}
+
+class _GateResolution {
+  const _GateResolution(this.destination, {this.collector});
+
+  final _GateDestination destination;
+  final CollectorProfile? collector;
+}
 
 class _GateError extends StatelessWidget {
   const _GateError({required this.onRetry});

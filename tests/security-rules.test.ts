@@ -151,13 +151,6 @@ describe('CleanGo Firestore rules', () => {
       scheduledDate: '2026-06-16',
       status: 'scheduled',
     });
-    batch.set(doc(db, 'payments/payment-a'), {
-      customerId: customerA,
-      subscriptionId,
-      amountXaf: 0,
-      provider: 'manual',
-      status: 'pending',
-    });
 
     await assertSucceeds(batch.commit());
   }, 15_000);
@@ -332,17 +325,68 @@ describe('CleanGo Firestore rules', () => {
     await assertFails(updateDoc(doc(otherDb, 'pickups/pickup-a'), { status: 'en_route' }));
   });
 
-  it('prevents customers from marking payments paid', async () => {
-    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
-    const payment = doc(db, 'payments/payment-a');
-
-    await assertSucceeds(setDoc(payment, {
+  it('allows a protected cash request but prevents customers from marking it paid', async () => {
+    const sourceId = 'collection-payment-source';
+    const paymentId = 'pay12345678901234567';
+    const idempotencyKey = 'a'.repeat(64);
+    await seed(`collections/${sourceId}`, {
       customerId: customerA,
-      amountXaf: 5000,
-      provider: 'manual',
-      status: 'pending',
-    }));
-    await assertFails(updateDoc(payment, { status: 'paid' }));
+      paymentStatus: 'unpaid',
+      quotationStatus: 'notRequired',
+      pricing: { totalAmount: 1500, pricingVersion: 'approved-v1-2026-07' },
+      pricingSnapshot: { totalAmount: 1500, pricingVersion: 'approved-v1-2026-07' },
+    });
+    const db = testEnv.authenticatedContext(customerA, { role: 'customer' }).firestore();
+    const payment = doc(db, `payments/${paymentId}`);
+    const batch = writeBatch(db);
+    batch.set(payment, {
+      customerId: customerA,
+      paymentMethod: 'cash',
+      paymentStatus: 'awaitingCashConfirmation',
+      amount: 1500,
+      currency: 'XAF',
+      purpose: 'oneTimePickup',
+      bookingId: sourceId,
+      subscriptionId: null,
+      quotationId: null,
+      providerReference: null,
+      externalTransactionId: null,
+      idempotencyKey,
+      phoneNumberMasked: null,
+      initiatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      confirmedAt: null,
+      failedAt: null,
+      cancelledAt: null,
+      confirmedBy: null,
+      confirmationSource: null,
+      failureCode: null,
+      failureMessageSafe: null,
+      pricingSnapshot: {
+        amount: 1500,
+        currency: 'XAF',
+        sourceType: 'collection',
+        sourceId,
+        pricingVersion: 'approved-v1-2026-07',
+      },
+      receipt: {
+        available: false,
+        receiptNumber: null,
+        downloadUrl: null,
+        issuedAt: null,
+      },
+      metadataVersion: 1,
+    });
+    batch.set(doc(db, `paymentIdempotency/${idempotencyKey}`), {
+      customerId: customerA,
+      paymentId,
+      purpose: 'oneTimePickup',
+      sourceId,
+      createdAt: serverTimestamp(),
+    });
+
+    await assertSucceeds(batch.commit());
+    await assertFails(updateDoc(payment, { paymentStatus: 'paid' }));
   });
 
   it('allows admins to manage operational records', async () => {

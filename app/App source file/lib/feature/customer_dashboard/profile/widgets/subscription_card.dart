@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
 
 class SubscriptionCard extends StatelessWidget {
-  const SubscriptionCard({required this.subscription, super.key});
+  const SubscriptionCard({
+    required this.subscription,
+    required this.onManage,
+    super.key,
+  });
 
   final Subscription? subscription;
+  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) {
-    final activeSubscription = subscription;
+    final current = subscription;
     return _ProfileSectionCard(
       icon: Icons.recycling,
       title: 'My subscription',
@@ -16,27 +21,30 @@ class SubscriptionCard extends StatelessWidget {
         children: [
           _DetailRow(
             label: 'Current plan',
-            value: activeSubscription == null
-                ? 'No active plan'
-                : _planLabel(activeSubscription.plan),
+            value: current?.planSnapshot.englishName ?? 'No active plan',
+          ),
+          const SizedBox(height: 10),
+          _DetailRow(
+            label: 'Status',
+            value: current?.status.label ?? 'Not subscribed',
           ),
           const SizedBox(height: 10),
           _DetailRow(
             label: 'Renewal date',
-            value: activeSubscription?.renewalDate == null
+            value: current?.renewalDate == null
                 ? 'Not scheduled'
-                : _dateLabel(activeSubscription!.renewalDate!),
+                : _dateLabel(current!.renewalDate!),
           ),
           const SizedBox(height: 10),
           _DetailRow(
             label: 'Collections left',
-            value: '${activeSubscription?.remainingCollections ?? 0}',
+            value: '${current?.remainingCollections ?? 0}',
           ),
           const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: onManage,
               icon: const Icon(Icons.settings_outlined),
               label: const Text('Manage Subscription'),
             ),
@@ -121,18 +129,6 @@ class _DetailRow extends StatelessWidget {
       ],
     );
   }
-}
-
-String _planLabel(SubscriptionPlan plan) {
-  return switch (plan) {
-    SubscriptionPlan.basic => 'Basic Plan',
-    SubscriptionPlan.standard => 'Standard Plan',
-    SubscriptionPlan.popular => 'Popular Plan',
-    SubscriptionPlan.premium => 'Premium Plan',
-    SubscriptionPlan.apartmentsHotels => 'Apartments & Hotels',
-    SubscriptionPlan.business => 'Business Plan',
-    SubscriptionPlan.enterprise => 'Enterprise Plan',
-  };
 }
 
 String _dateLabel(DateTime date) {

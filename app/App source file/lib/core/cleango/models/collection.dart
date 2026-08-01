@@ -15,6 +15,8 @@ enum CollectionStatus {
   pending,
   confirmed,
   assigned,
+  onTheWay,
+  arrived,
   inProgress,
   completed,
   missed,
@@ -134,6 +136,8 @@ extension CollectionStatusLabel on CollectionStatus {
     CollectionStatus.pending => 'pending',
     CollectionStatus.confirmed => 'confirmed',
     CollectionStatus.assigned => 'assigned',
+    CollectionStatus.onTheWay => 'onTheWay',
+    CollectionStatus.arrived => 'arrived',
     CollectionStatus.inProgress => 'inProgress',
     CollectionStatus.completed => 'completed',
     CollectionStatus.missed => 'missed',
@@ -144,7 +148,9 @@ extension CollectionStatusLabel on CollectionStatus {
     CollectionStatus.quotationRequested => 'Quotation requested',
     CollectionStatus.pending => 'Pending',
     CollectionStatus.confirmed => 'Confirmed',
-    CollectionStatus.assigned => 'Worker assigned',
+    CollectionStatus.assigned => 'Collector assigned',
+    CollectionStatus.onTheWay => 'Collector on the way',
+    CollectionStatus.arrived => 'Collector arrived',
     CollectionStatus.inProgress => 'In progress',
     CollectionStatus.completed => 'Completed',
     CollectionStatus.missed => 'Missed',
@@ -353,6 +359,11 @@ class WasteCollection {
     this.subscriptionId,
     this.includedInSubscription = false,
     this.assignedWorkerId,
+    this.onTheWayAt,
+    this.arrivedAt,
+    this.startedAt,
+    this.missedAt,
+    this.missedReason,
     this.cancelledAt,
     this.completedAt,
   });
@@ -386,6 +397,11 @@ class WasteCollection {
   final bool includedInSubscription;
   final String customerNotes;
   final String? assignedWorkerId;
+  final DateTime? onTheWayAt;
+  final DateTime? arrivedAt;
+  final DateTime? startedAt;
+  final DateTime? missedAt;
+  final String? missedReason;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? cancelledAt;
@@ -413,6 +429,8 @@ class WasteCollection {
       status == CollectionStatus.pending ||
       status == CollectionStatus.confirmed ||
       status == CollectionStatus.assigned ||
+      status == CollectionStatus.onTheWay ||
+      status == CollectionStatus.arrived ||
       status == CollectionStatus.inProgress;
 
   bool get canCancel =>
@@ -429,6 +447,11 @@ class WasteCollection {
     DateTime? scheduledDate,
     CollectionTimeWindow? scheduledTimeWindow,
     DateTime? updatedAt,
+    DateTime? onTheWayAt,
+    DateTime? arrivedAt,
+    DateTime? startedAt,
+    DateTime? missedAt,
+    String? missedReason,
     DateTime? cancelledAt,
     DateTime? completedAt,
   }) {
@@ -462,6 +485,11 @@ class WasteCollection {
       includedInSubscription: includedInSubscription,
       customerNotes: customerNotes,
       assignedWorkerId: assignedWorkerId,
+      onTheWayAt: onTheWayAt ?? this.onTheWayAt,
+      arrivedAt: arrivedAt ?? this.arrivedAt,
+      startedAt: startedAt ?? this.startedAt,
+      missedAt: missedAt ?? this.missedAt,
+      missedReason: missedReason ?? this.missedReason,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       cancelledAt: cancelledAt ?? this.cancelledAt,

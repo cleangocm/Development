@@ -7,6 +7,7 @@ import 'package:ultrawash/core/cleango/repositories/firebase/firebase_customer_r
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_collection_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_payment_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/firebase/firebase_support_request_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/firebase/firebase_subscription_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
@@ -14,6 +15,7 @@ import 'package:ultrawash/core/cleango/repositories/rest/rest_collection_reposit
 import 'package:ultrawash/core/cleango/repositories/rest/rest_customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/rest/rest_notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/support_request_repository.dart';
 import 'package:ultrawash/core/cleango/services/mock_collection_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_customer_service.dart';
 import 'package:ultrawash/core/cleango/services/mock_notification_service.dart';
@@ -27,6 +29,7 @@ class RepositoryFactory {
     required this.collectionRepository,
     required this.paymentRepository,
     required this.notificationRepository,
+    this.supportRequestRepository,
   });
 
   factory RepositoryFactory.mock() {
@@ -270,6 +273,10 @@ class RepositoryFactory {
         firestore: firestore,
         firebaseAuth: firebaseAuth,
       ),
+      supportRequestRepository: FirebaseSupportRequestRepository(
+        firestore: firestore,
+        firebaseAuth: firebaseAuth,
+      ),
     );
   }
   factory RepositoryFactory.restCustomer({NetworkService? networkService}) {
@@ -314,4 +321,5 @@ class RepositoryFactory {
   final CollectionRepository collectionRepository;
   final PaymentRepository paymentRepository;
   final NotificationRepository notificationRepository;
+  final SupportRequestRepository? supportRequestRepository;
 }

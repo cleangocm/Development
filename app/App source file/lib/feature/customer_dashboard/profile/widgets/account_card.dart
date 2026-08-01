@@ -1,21 +1,45 @@
 import 'package:flutter/material.dart';
 
 class AccountCard extends StatelessWidget {
-  const AccountCard({super.key});
+  const AccountCard({
+    required this.onPrivacyPolicy,
+    required this.onTermsOfService,
+    required this.onChangePassword,
+    required this.onLogout,
+    super.key,
+  });
 
-  static const _actions = [
-    _AccountAction(icon: Icons.privacy_tip_outlined, label: 'Privacy Policy'),
-    _AccountAction(icon: Icons.description_outlined, label: 'Terms of Service'),
-    _AccountAction(icon: Icons.lock_outline, label: 'Change Password'),
-    _AccountAction(
-      icon: Icons.logout,
-      label: 'Logout',
-      color: Color(0xFFB91C1C),
-    ),
-  ];
+  final VoidCallback onPrivacyPolicy;
+  final VoidCallback onTermsOfService;
+  final VoidCallback onChangePassword;
+  final VoidCallback? onLogout;
 
   @override
   Widget build(BuildContext context) {
+    final actions = <_AccountAction>[
+      _AccountAction(
+        icon: Icons.privacy_tip_outlined,
+        label: 'Privacy Policy',
+        onTap: onPrivacyPolicy,
+      ),
+      _AccountAction(
+        icon: Icons.description_outlined,
+        label: 'Terms of Service',
+        onTap: onTermsOfService,
+      ),
+      _AccountAction(
+        icon: Icons.lock_outline,
+        label: 'Change Password',
+        onTap: onChangePassword,
+      ),
+      _AccountAction(
+        icon: Icons.logout,
+        label: 'Logout',
+        color: const Color(0xFFB91C1C),
+        onTap: onLogout,
+      ),
+    ];
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -37,7 +61,7 @@ class AccountCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          for (final action in _actions)
+          for (final action in actions)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(action.icon, color: action.color),
@@ -49,7 +73,7 @@ class AccountCard extends StatelessWidget {
                 ),
               ),
               trailing: Icon(Icons.chevron_right, color: action.color),
-              onTap: () {},
+              onTap: action.onTap,
             ),
         ],
       ),
@@ -61,10 +85,12 @@ class _AccountAction {
   const _AccountAction({
     required this.icon,
     required this.label,
+    required this.onTap,
     this.color = const Color(0xFF475569),
   });
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
   final Color color;
 }

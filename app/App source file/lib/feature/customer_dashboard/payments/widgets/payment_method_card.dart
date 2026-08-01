@@ -2,81 +2,87 @@ import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/payment.dart';
 
 class PaymentMethodCard extends StatelessWidget {
-  const PaymentMethodCard({required this.methods, super.key});
+  const PaymentMethodCard({super.key, required this.methods});
 
   final List<PaymentMethod> methods;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 760 ? 3 : 2;
-        final width = (constraints.maxWidth - ((columns - 1) * 12)) / columns;
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (final method in methods)
-              SizedBox(
-                width: width,
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 90),
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          color: method.color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(method.icon, color: method.color),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          method.label,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < methods.length; index++) ...[
+            _MethodRow(method: methods[index]),
+            if (index < methods.length - 1) const Divider(height: 24),
           ],
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
-extension PaymentMethodDisplay on PaymentMethod {
-  String get label => switch (this) {
-    PaymentMethod.mtnMobileMoney => 'MTN Mobile Money',
-    PaymentMethod.orangeMoney => 'Orange Money',
-    PaymentMethod.stripeCard => 'Stripe / Credit Card',
-    PaymentMethod.bankTransfer => 'Bank Transfer',
-    PaymentMethod.cashOnCollection => 'Cash on Collection',
-  };
+class _MethodRow extends StatelessWidget {
+  const _MethodRow({required this.method});
 
-  IconData get icon => switch (this) {
-    PaymentMethod.mtnMobileMoney => Icons.phone_android,
-    PaymentMethod.orangeMoney => Icons.smartphone,
-    PaymentMethod.stripeCard => Icons.credit_card,
-    PaymentMethod.bankTransfer => Icons.account_balance_outlined,
-    PaymentMethod.cashOnCollection => Icons.payments_outlined,
-  };
+  final PaymentMethod method;
 
-  Color get color => switch (this) {
-    PaymentMethod.mtnMobileMoney => const Color(0xFFF59E0B),
-    PaymentMethod.orangeMoney => const Color(0xFFF97316),
-    PaymentMethod.stripeCard => const Color(0xFF635BFF),
-    PaymentMethod.bankTransfer => const Color(0xFF1073E6),
-    PaymentMethod.cashOnCollection => const Color(0xFF16A34A),
-  };
+  @override
+  Widget build(BuildContext context) {
+    final available = method == PaymentMethod.cash;
+    return Row(
+      children: [
+        CircleAvatar(
+          backgroundColor: _color(method).withValues(alpha: .12),
+          foregroundColor: _color(method),
+          child: Icon(_icon(method)),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                method.label(),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                available
+                    ? 'Available · confirmation required'
+                    : 'Integration not configured',
+                style: TextStyle(
+                  color: available
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFF64748B),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Icon(
+          available ? Icons.check_circle_outline : Icons.lock_clock_outlined,
+          color: available ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+        ),
+      ],
+    );
+  }
 }
+
+IconData _icon(PaymentMethod method) => switch (method) {
+  PaymentMethod.mtnMobileMoney => Icons.phone_android,
+  PaymentMethod.orangeMoney => Icons.phone_iphone,
+  PaymentMethod.cash => Icons.payments_outlined,
+};
+
+Color _color(PaymentMethod method) => switch (method) {
+  PaymentMethod.mtnMobileMoney => const Color(0xFFF5C400),
+  PaymentMethod.orangeMoney => const Color(0xFFFF7900),
+  PaymentMethod.cash => const Color(0xFF16A34A),
+};

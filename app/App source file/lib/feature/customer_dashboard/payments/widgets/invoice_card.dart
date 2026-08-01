@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/payment.dart';
-import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_history_card.dart';
 
 class InvoiceCard extends StatelessWidget {
-  const InvoiceCard({required this.payment, super.key});
+  const InvoiceCard({required this.payment, this.onViewDetails, super.key});
 
   final Payment payment;
+  final VoidCallback? onViewDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -19,29 +19,35 @@ class InvoiceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.description_outlined, color: Color(0xFF1073E6)),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  payment.invoiceNumber,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
+              Icon(Icons.description_outlined, color: Color(0xFF1073E6)),
+              SizedBox(width: 9),
+              Text(
+                'Receipt foundation',
+                style: TextStyle(fontWeight: FontWeight.w800),
               ),
-              PaymentStatusBadge(status: payment.status),
             ],
           ),
           const SizedBox(height: 16),
-          _InvoiceDetail(label: 'Billing period', value: payment.billingPeriod),
+          _InvoiceDetail(label: 'Payment', value: _shortReference(payment.id)),
           const SizedBox(height: 8),
           _InvoiceDetail(label: 'Amount', value: _formatXaf(payment.amountXaf)),
-          const SizedBox(height: 18),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.visibility_outlined),
-            label: const Text('View Invoice'),
+          const SizedBox(height: 8),
+          _InvoiceDetail(
+            label: 'Receipt',
+            value: payment.receiptAvailable
+                ? 'Available'
+                : 'Requires trusted confirmation',
           ),
+          if (onViewDetails != null) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: onViewDetails,
+              icon: const Icon(Icons.visibility_outlined),
+              label: const Text('View payment'),
+            ),
+          ],
         ],
       ),
     );
@@ -60,12 +66,23 @@ class _InvoiceDetail extends StatelessWidget {
       children: [
         Text(label, style: const TextStyle(color: Color(0xFF64748B))),
         const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
       ],
     );
   }
 }
 
+String _shortReference(String id) {
+  final suffix = id.length <= 12 ? id : id.substring(id.length - 12);
+  return 'CG-${suffix.toUpperCase()}';
+}
+
 String _formatXaf(int amount) {
-  return '${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')} XAF';
+  return '${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ' ')} FCFA';
 }

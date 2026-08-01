@@ -1,15 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
-import 'package:http/http.dart' as http;
 import 'package:ultrawash/app/resource.dart';
 import 'package:ultrawash/app/widget_button.dart';
 import 'package:ultrawash/app/wtext.dart';
 import 'package:ultrawash/feature/Add/UI/controller/add_service_controller.dart';
 import 'package:ultrawash/feature/Cloth type/model/service_order_model.dart';
-import '../widget/add_card_bottom_sheet.dart';
 import '../widget/order_success_dialog.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -41,113 +37,16 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
-  final AddServiceControllers _addServiceController = Get.find<AddServiceControllers>();
+  final AddServiceControllers _addServiceController =
+      Get.find<AddServiceControllers>();
 
   int _selectedPaymentIndex = 0;
   bool _isProcessing = false;
 
   // Payment methods
   final List<Map<String, dynamic>> _paymentMethods = [
-    {
-      'type': 'cod',
-      'name': 'Cash on Delivery',
-      'icon': Icons.money,
-    },
-    {
-      'type': 'stripe',
-      'name': 'Pay with Card (Stripe)',
-      'icon': Icons.credit_card,
-    },
+    {'type': 'cod', 'name': 'Cash on Delivery', 'icon': Icons.money},
   ];
-
-  static const String _webAppUrl = String.fromEnvironment(
-    'CLEANGO_WEB_APP_URL',
-    defaultValue: 'http://localhost:3001',
-  );
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  // Create Stripe Payment Intent
-  Future<Map<String, dynamic>?> _createPaymentIntent() async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_webAppUrl/api/create-payment-intent'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'amount': widget.totalAmount,
-          'currency': 'usd',
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      }
-      return null;
-    } catch (e) {
-      debugPrint('Error creating payment intent: $e');
-      return null;
-    }
-  }
-
-  // Process Stripe Payment
-  Future<bool> _processStripePayment() async {
-    try {
-      if (mounted) setState(() => _isProcessing = true);
-
-      // 1. Create payment intent
-      final paymentIntent = await _createPaymentIntent();
-      if (paymentIntent == null) {
-        _showError('Failed to create payment intent');
-        if (mounted) setState(() => _isProcessing = false);
-        return false;
-      }
-
-      // 2. Initialize payment sheet
-      await Stripe.instance.initPaymentSheet(
-        paymentSheetParameters: SetupPaymentSheetParameters(
-          paymentIntentClientSecret: paymentIntent['clientSecret'],
-          merchantDisplayName: 'Ultra Wash',
-          style: ThemeMode.light,
-          billingDetails: BillingDetails(
-            name: widget.billingInfo['fullName'],
-            email: widget.billingInfo['email'],
-            phone: widget.billingInfo['phone'],
-            address: Address(
-              city: '',
-              country: 'US',
-              line1: widget.billingInfo['address'] ?? '',
-              line2: '',
-              postalCode: '',
-              state: '',
-            ),
-          ),
-        ),
-      );
-
-      if (mounted) setState(() => _isProcessing = false);
-
-      // 3. Present payment sheet
-      await Stripe.instance.presentPaymentSheet();
-
-      // Payment completed successfully
-      return true;
-    } on StripeException catch (e) {
-      if (e.error.code != FailureCode.Canceled) {
-        _showError(e.error.localizedMessage ?? 'Payment failed');
-      }
-      if (mounted) setState(() => _isProcessing = false);
-      return false;
-    } catch (e) {
-      _showError('Payment error: $e');
-      if (mounted) setState(() => _isProcessing = false);
-      return false;
-    }
-  }
 
   // Place order after payment
   Future<void> _placeOrder(String paymentMethod) async {
@@ -169,33 +68,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  // Handle Pay Now
+  // Legacy Laundry checkout is cash-only while CLEANGO uses its Firebase payment flow.
   Future<void> _handlePayNow() async {
     if (_isProcessing) return;
-
-    final selectedMethod = _paymentMethods[_selectedPaymentIndex];
-
-    if (selectedMethod['type'] == 'cod') {
-      // Cash on Delivery - place order directly
-      await _placeOrder('cod');
-    } else if (selectedMethod['type'] == 'stripe') {
-      // Stripe - process payment then place order
-      final success = await _processStripePayment();
-      if (success) {
-        await _placeOrder('stripe');
-      }
-    }
-  }
-
-  void _showError(String message) {
-    Get.snackbar(
-      'Error',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-      duration: const Duration(seconds: 3),
-    );
+    await _placeOrder('cod');
   }
 
   void _showOrderSuccessDialog(Map<String, dynamic> orderData) {
@@ -313,7 +189,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 color: R.color.charcoal,
                               ),
                               WText(
-                                text: '\$${widget.shippingFee.toStringAsFixed(2)}',
+                                text:
+                                    '\$${widget.shippingFee.toStringAsFixed(2)}',
                                 fontSize: 14.sp,
                                 fontWeight: FontWeight.w600,
                                 color: R.color.charcoal,
@@ -327,13 +204,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 WText(
-                                  text: 'Coupon${widget.couponCode != null ? ' (${widget.couponCode})' : ''}',
+                                  text:
+                                      'Coupon${widget.couponCode != null ? ' (${widget.couponCode})' : ''}',
                                   fontSize: 14.sp,
                                   fontWeight: FontWeight.w400,
                                   color: R.color.emeraldGreen1,
                                 ),
                                 WText(
-                                  text: '-\$${widget.couponDiscount.toStringAsFixed(2)}',
+                                  text:
+                                      '-\$${widget.couponDiscount.toStringAsFixed(2)}',
                                   fontSize: 14.sp,
                                   fontWeight: FontWeight.w600,
                                   color: R.color.emeraldGreen1,
@@ -362,7 +241,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   WText(
-                                    text: '\$${widget.totalAmount.toStringAsFixed(2)}',
+                                    text:
+                                        '\$${widget.totalAmount.toStringAsFixed(2)}',
                                     fontSize: 18.sp,
                                     fontWeight: FontWeight.w700,
                                     color: R.color.emeraldGreen1,
@@ -540,19 +420,4 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ),
     );
   }
-
-  void _showAddCardBottomSheet() {
-    AddCardBottomSheet.show(
-      context: context,
-      totalAmount: widget.totalAmount,
-      onPay: () async {
-        final success = await _processStripePayment();
-        if (success) {
-          await _placeOrder('stripe');
-        }
-      },
-    );
-  }
-
 }
-

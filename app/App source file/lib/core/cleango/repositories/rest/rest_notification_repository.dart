@@ -217,58 +217,51 @@ CleanGoNotificationType _notificationType(
   required String message,
   required Map<String, dynamic>? metadata,
 }) {
+  final direct = cleanGoNotificationTypeFromWire(rawType ?? metadata?['type']);
+  if (direct != CleanGoNotificationType.unknown) return direct;
+
   final signal = [
     rawType,
     title,
     message,
-    metadata?['type'],
     metadata?['event'],
     metadata?['status'],
   ].map(_stringValue).join(' ').toLowerCase().replaceAll('-', '_');
 
-  if (signal.contains('collector_assigned') ||
-      signal.contains('pickup assigned') ||
-      signal.contains('delivery assigned')) {
-    return CleanGoNotificationType.collectorAssigned;
+  if (signal.contains('on_the_way') || signal.contains('on the way')) {
+    return CleanGoNotificationType.collectorOnTheWay;
   }
-  if (signal.contains('pickup_completed') ||
-      signal.contains('pickup completed') ||
-      signal.contains('collection completed')) {
-    return CleanGoNotificationType.pickupCompleted;
+  if (signal.contains('arrived')) {
+    return CleanGoNotificationType.collectorArrived;
   }
-  if (signal.contains('payment_confirmed') ||
-      signal.contains('payment confirmed') ||
-      signal.contains('payment successful') ||
-      signal.contains('payment paid')) {
-    return CleanGoNotificationType.paymentConfirmed;
+  if (signal.contains('completed') &&
+      (signal.contains('pickup') || signal.contains('collection'))) {
+    return CleanGoNotificationType.collectionCompleted;
   }
-  if (signal.contains('payment')) {
-    return CleanGoNotificationType.paymentReminder;
+  if (signal.contains('payment') &&
+      (signal.contains('confirmed') || signal.contains('received'))) {
+    return CleanGoNotificationType.paymentReceived;
   }
-  if (signal.contains('subscription') && signal.contains('renew')) {
-    return CleanGoNotificationType.subscriptionRenewal;
+  if (signal.contains('subscription')) {
+    return CleanGoNotificationType.subscriptionExpiringFiveDays;
   }
   if (signal.contains('pickup') ||
       signal.contains('collection') ||
       signal.contains('order')) {
-    return CleanGoNotificationType.pickupReminder;
+    return CleanGoNotificationType.collectionReminderTomorrow;
   }
-  if (signal.contains('service area') || signal.contains('service_area')) {
-    return CleanGoNotificationType.serviceAreaUpdate;
-  }
-
-  return CleanGoNotificationType.serviceAreaUpdate;
+  return CleanGoNotificationType.unknown;
 }
 
 String? _defaultActionLabel(CleanGoNotificationType type) {
   return switch (type) {
-    CleanGoNotificationType.pickupReminder ||
-    CleanGoNotificationType.collectorAssigned ||
-    CleanGoNotificationType.pickupCompleted => 'View pickup',
-    CleanGoNotificationType.paymentReminder ||
-    CleanGoNotificationType.paymentConfirmed => 'View payment',
-    CleanGoNotificationType.subscriptionRenewal => 'View subscription',
-    CleanGoNotificationType.serviceAreaUpdate => null,
+    CleanGoNotificationType.collectionReminderTomorrow ||
+    CleanGoNotificationType.collectorOnTheWay ||
+    CleanGoNotificationType.collectorArrived ||
+    CleanGoNotificationType.collectionCompleted => 'View collection',
+    CleanGoNotificationType.paymentReceived => 'View payment',
+    CleanGoNotificationType.subscriptionExpiringFiveDays => 'View subscription',
+    CleanGoNotificationType.unknown => 'View notifications',
   };
 }
 

@@ -14,8 +14,12 @@ export {
   verifyPaymentManually,
 } from './payments.js';
 export {
+  onCollectionStatusNotification,
+  onPaymentReceivedNotification,
   registerDeviceToken,
   sendPickupReminders,
+  sendSubscriptionExpiryReminders,
+  unregisterDeviceToken,
 } from './notifications.js';
 
 if (getApps().length === 0) initializeApp();
@@ -72,7 +76,11 @@ export const setUserRole = onCall<SetUserRoleInput>(
     const role = requestedRole as UserRole;
     const targetUser = await auth.getUser(uid);
     const targetRef = db.collection('users').doc(uid);
-    const targetSnapshot = await targetRef.get();
+    const collectorRef = db.collection('collectors').doc(uid);
+    const [targetSnapshot, collectorSnapshot] = await Promise.all([
+      targetRef.get(),
+      collectorRef.get(),
+    ]);
     const previousRole = targetSnapshot.data()?.role ?? targetUser.customClaims?.role ?? 'customer';
 
     await auth.setCustomUserClaims(uid, {
@@ -91,16 +99,48 @@ export const setUserRole = onCall<SetUserRoleInput>(
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     if (role === 'collector') {
-      batch.set(db.collection('collectors').doc(uid), {
+      const existing = collectorSnapshot.data() ?? {};
+      batch.set(collectorRef, {
+        uid,
         userId: uid,
-        name: targetUser.displayName ?? targetSnapshot.data()?.name ?? '',
-        phone: targetUser.phoneNumber ?? targetSnapshot.data()?.phone ?? '',
-        active: true,
-        serviceZoneIds: [],
-        payRate: 300,
+        displayName: targetUser.displayName ?? existing.displayName ?? '',
+        name: targetUser.displayName ?? existing.name ?? '',
+        phoneNumber: targetUser.phoneNumber ?? existing.phoneNumber ?? '',
+        phone: targetUser.phoneNumber ?? existing.phone ?? '',
+        email: targetUser.email ?? existing.email ?? '',
+        profileImageUrl: existing.profileImageUrl ?? '',
+        role: 'collector',
+        approvalStatus: existing.approvalStatus ?? 'pending',
+        accountStatus: existing.accountStatus ?? 'inactive',
+        active: existing.active ?? false,
+        serviceZones: existing.serviceZones ?? [],
+        serviceZoneIds: existing.serviceZoneIds ?? existing.serviceZones ?? [],
+        vehicleType: existing.vehicleType ?? 'unknown',
+        vehicleId: existing.vehicleId ?? null,
+        employeeReference: existing.employeeReference ?? null,
+        createdAt: existing.createdAt ?? FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+        approvedAt: existing.approvedAt ?? null,
+        approvedBy: existing.approvedBy ?? null,
+        suspendedAt: existing.suspendedAt ?? null,
+        suspensionReason: existing.suspensionReason ?? null,
+        lastActiveAt: existing.lastActiveAt ?? null,
+        currentAvailability: existing.currentAvailability ?? 'unavailable',
+        availabilityReason: existing.availabilityReason ?? null,
       }, { merge: true });
-    } else if (role === 'customer') {
+    } else {
+      if (collectorSnapshot.exists) {
+        batch.set(collectorRef, {
+          approvalStatus: 'suspended',
+          accountStatus: 'blocked',
+          active: false,
+          suspendedAt: FieldValue.serverTimestamp(),
+          suspensionReason: 'role_changed',
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    }
+    if (role === 'customer') {
       batch.set(db.collection('customers').doc(uid), {
         userId: uid,
         name: targetUser.displayName ?? targetSnapshot.data()?.name ?? '',
@@ -123,6 +163,211 @@ export const setUserRole = onCall<SetUserRoleInput>(
     await batch.commit();
 
     return { success: true, uid, role, message: 'Role updated. Sign in again to refresh access.' };
+  },
+);
+
+const collectorReviewDecisions = ['approve', 'reject', 'suspend', 'reactivate'] as const;
+type CollectorReviewDecision = (typeof collectorReviewDecisions)[number];
+const collectorVehicleTypes = ['bicycle', 'tricycle', 'motorcycle', 'van', 'truck', 'unknown'] as const;
+type CollectorVehicleType = (typeof collectorVehicleTypes)[number];
+
+interface ReviewCollectorInput {
+  uid?: string;
+  decision?: string;
+  serviceZones?: string[];
+  vehicleType?: string;
+  vehicleId?: string;
+  employeeReference?: string;
+  reason?: string;
+}
+
+function cleanStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    throw new HttpsError('invalid-argument', 'serviceZones must be a list.');
+  }
+  const values = value
+    .map((item) => String(item).trim())
+    .filter((item) => item.length > 0 && item.length <= 120);
+  return [...new Set(values)].slice(0, 20);
+}
+
+export const reviewCollector = onCall<ReviewCollectorInput>(
+  { region: 'europe-west1' },
+  async (request) => {
+    requireAdmin(request.auth);
+    const uid = request.data.uid?.trim();
+    const requestedDecision = request.data.decision?.trim();
+    if (!uid || !requestedDecision || !collectorReviewDecisions.includes(
+      requestedDecision as CollectorReviewDecision,
+    )) {
+      throw new HttpsError('invalid-argument', 'A valid collector and review decision are required.');
+    }
+    if (uid === request.auth!.uid) {
+      throw new HttpsError('failed-precondition', 'Administrators cannot review their own collector access.');
+    }
+    const decision = requestedDecision as CollectorReviewDecision;
+    const reason = request.data.reason?.trim() || '';
+    if (['reject', 'suspend'].includes(decision) && reason.length < 3) {
+      throw new HttpsError('invalid-argument', 'A review reason is required.');
+    }
+    const requestedVehicle = request.data.vehicleType?.trim() || 'unknown';
+    if (!collectorVehicleTypes.includes(requestedVehicle as CollectorVehicleType)) {
+      throw new HttpsError('invalid-argument', 'Choose a supported collector vehicle type.');
+    }
+
+    const collectorRef = db.collection('collectors').doc(uid);
+    const userRef = db.collection('users').doc(uid);
+    const [targetUser, collectorSnapshot, userSnapshot] = await Promise.all([
+      auth.getUser(uid),
+      collectorRef.get(),
+      userRef.get(),
+    ]);
+    const existing = collectorSnapshot.data() ?? {};
+    const approved = decision === 'approve' || decision === 'reactivate';
+    const approvalStatus = approved
+      ? 'approved'
+      : decision === 'reject'
+        ? 'rejected'
+        : 'suspended';
+    const accountStatus = approved
+      ? 'active'
+      : decision === 'reject'
+        ? 'inactive'
+        : 'blocked';
+    const serviceZones = request.data.serviceZones === undefined
+      ? (Array.isArray(existing.serviceZones) ? existing.serviceZones : [])
+      : cleanStringList(request.data.serviceZones);
+    const now = FieldValue.serverTimestamp();
+
+    await auth.setCustomUserClaims(uid, {
+      ...(targetUser.customClaims ?? {}),
+      role: 'collector',
+      admin: false,
+      collector: true,
+    });
+
+    const batch = db.batch();
+    batch.set(userRef, {
+      uid,
+      role: 'collector',
+      active: accountStatus === 'active',
+      email: targetUser.email ?? userSnapshot.data()?.email ?? '',
+      updatedAt: now,
+    }, { merge: true });
+    batch.set(collectorRef, {
+      uid,
+      userId: uid,
+      displayName: targetUser.displayName ?? existing.displayName ?? '',
+      name: targetUser.displayName ?? existing.name ?? '',
+      phoneNumber: targetUser.phoneNumber ?? existing.phoneNumber ?? '',
+      phone: targetUser.phoneNumber ?? existing.phone ?? '',
+      email: targetUser.email ?? existing.email ?? '',
+      profileImageUrl: existing.profileImageUrl ?? '',
+      role: 'collector',
+      approvalStatus,
+      accountStatus,
+      active: accountStatus === 'active',
+      serviceZones,
+      serviceZoneIds: serviceZones,
+      vehicleType: requestedVehicle,
+      vehicleId: request.data.vehicleId?.trim() || existing.vehicleId || null,
+      employeeReference: request.data.employeeReference?.trim()
+        || existing.employeeReference
+        || null,
+      createdAt: existing.createdAt ?? now,
+      updatedAt: now,
+      approvedAt: approved ? now : existing.approvedAt ?? null,
+      approvedBy: approved ? request.auth!.uid : existing.approvedBy ?? null,
+      suspendedAt: decision === 'suspend' ? now : null,
+      suspensionReason: approved ? null : reason,
+      lastActiveAt: existing.lastActiveAt ?? null,
+      currentAvailability: approved
+        ? existing.currentAvailability ?? 'unavailable'
+        : 'unavailable',
+      availabilityReason: approved ? existing.availabilityReason ?? null : reason,
+    }, { merge: true });
+    batch.set(db.collection('auditLogs').doc(), {
+      action: 'collector.access.reviewed',
+      actorUid: request.auth!.uid,
+      collectorId: uid,
+      decision,
+      previousApprovalStatus: existing.approvalStatus ?? 'missing',
+      newApprovalStatus: approvalStatus,
+      createdAt: now,
+    });
+    await batch.commit();
+
+    return { success: true, decision, approvalStatus, accountStatus };
+  },
+);
+
+interface AssignCollectionInput {
+  collectionId?: string;
+  collectorId?: string;
+}
+
+export const assignCollection = onCall<AssignCollectionInput>(
+  { region: 'europe-west1' },
+  async (request) => {
+    requireAdmin(request.auth);
+    const collectionId = request.data.collectionId?.trim();
+    const collectorId = request.data.collectorId?.trim();
+    if (!collectionId || !collectorId) {
+      throw new HttpsError('invalid-argument', 'collectionId and collectorId are required.');
+    }
+
+    const collectionRef = db.collection('collections').doc(collectionId);
+    const collectorRef = db.collection('collectors').doc(collectorId);
+    await db.runTransaction(async (transaction) => {
+      const [collectionSnapshot, collectorSnapshot] = await Promise.all([
+        transaction.get(collectionRef),
+        transaction.get(collectorRef),
+      ]);
+      if (!collectionSnapshot.exists) {
+        throw new HttpsError('not-found', 'Collection not found.');
+      }
+      if (!collectorSnapshot.exists) {
+        throw new HttpsError('not-found', 'Collector not found.');
+      }
+      const collection = collectionSnapshot.data()!;
+      const collector = collectorSnapshot.data()!;
+      if (collector.role !== 'collector'
+        || collector.approvalStatus !== 'approved'
+        || collector.accountStatus !== 'active') {
+        throw new HttpsError('failed-precondition', 'Collector is not approved and active.');
+      }
+      if (!['confirmed', 'assigned'].includes(String(collection.status ?? ''))) {
+        throw new HttpsError('failed-precondition', 'Collection is not ready for assignment.');
+      }
+      if (collection.paymentStatus !== 'paid') {
+        throw new HttpsError('failed-precondition', 'Collection payment is not confirmed.');
+      }
+      const collectionZone = String(collection.serviceZoneId ?? '').trim();
+      const zones = Array.isArray(collector.serviceZones)
+        ? collector.serviceZones.map((zone: unknown) => String(zone))
+        : [];
+      if (collectionZone && zones.length > 0 && !zones.includes(collectionZone)) {
+        throw new HttpsError('failed-precondition', 'Collector is outside this service zone.');
+      }
+
+      const now = FieldValue.serverTimestamp();
+      transaction.update(collectionRef, {
+        assignedWorkerId: collectorId,
+        status: 'assigned',
+        assignedAt: now,
+        updatedAt: now,
+      });
+      transaction.set(db.collection('auditLogs').doc(), {
+        action: 'collection.assigned',
+        actorUid: request.auth!.uid,
+        collectionId,
+        collectorId,
+        previousCollectorId: collection.assignedWorkerId ?? null,
+        createdAt: now,
+      });
+    });
+
+    return { success: true, collectionId, status: 'assigned' };
   },
 );
 

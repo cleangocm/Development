@@ -38,7 +38,8 @@ class NotificationsTabController {
     final todaysReminders = sortedNotifications
         .where(
           (notification) =>
-              notification.type == CleanGoNotificationType.pickupReminder &&
+              notification.type ==
+                  CleanGoNotificationType.collectionReminderTomorrow &&
               _isToday(notification.createdAt),
         )
         .length;

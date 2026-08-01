@@ -19,29 +19,20 @@ class FirebaseNotificationRepository implements NotificationRepository {
   @override
   Future<List<CleanGoNotification>> getNotifications(String customerId) async {
     final uid = _requireCurrentCustomer(customerId: customerId);
-    final snapshot = await _notifications.where('userId', isEqualTo: uid).get();
-    final notifications = snapshot.docs
-        .map(_notificationFromDocument)
-        .where((notification) => notification.customerId == uid)
-        .toList(growable: false);
-    notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final documents = await _ownedDocuments(uid);
+    final notifications =
+        documents
+            .map(_notificationFromDocument)
+            .where((notification) => notification.customerId == uid)
+            .toList(growable: false)
+          ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
     return List.unmodifiable(notifications);
   }
 
   @override
   Future<int> getUnreadCount(String customerId) async {
-    final uid = _requireCurrentCustomer(customerId: customerId);
-    try {
-      final snapshot = await _notifications
-          .where('userId', isEqualTo: uid)
-          .where('read', isEqualTo: false)
-          .get();
-      return snapshot.size;
-    } on FirebaseException catch (error) {
-      if (error.code != 'failed-precondition') rethrow;
-      final notifications = await getNotifications(uid);
-      return notifications.where((notification) => !notification.isRead).length;
-    }
+    final notifications = await getNotifications(customerId);
+    return notifications.where((notification) => !notification.isRead).length;
   }
 
   @override
@@ -50,15 +41,15 @@ class FirebaseNotificationRepository implements NotificationRepository {
     final reference = _notifications.doc(notificationId);
     final snapshot = await reference.get();
     if (!snapshot.exists) {
-      throw StateError('Notification not found: $notificationId');
+      throw StateError('Notification not found.');
     }
 
     final notification = _notificationFromDocument(snapshot);
     if (notification.customerId != uid) {
-      throw StateError('Notification does not belong to the current customer');
+      throw StateError('Notification does not belong to the current customer.');
     }
 
-    await reference.update({
+    await reference.update(<String, dynamic>{
       'read': true,
       'readAt': FieldValue.serverTimestamp(),
     });
@@ -70,27 +61,57 @@ class FirebaseNotificationRepository implements NotificationRepository {
   @override
   Future<void> markAllAsRead(String customerId) async {
     final uid = _requireCurrentCustomer(customerId: customerId);
-    final snapshot = await _notifications
-        .where('userId', isEqualTo: uid)
-        .where('read', isEqualTo: false)
-        .get();
+    final documents = await _ownedDocuments(uid);
+    final unread = documents
+        .where((document) {
+          final notification = _notificationFromDocument(document);
+          return notification.customerId == uid && !notification.isRead;
+        })
+        .toList(growable: false);
 
-    final batch = _firestore.batch();
-    for (final document in snapshot.docs) {
-      final notification = _notificationFromDocument(document);
-      if (notification.customerId != uid) continue;
-      batch.update(document.reference, {
-        'read': true,
-        'readAt': FieldValue.serverTimestamp(),
-      });
+    const batchLimit = 400;
+    for (var offset = 0; offset < unread.length; offset += batchLimit) {
+      final batch = _firestore.batch();
+      final end = (offset + batchLimit).clamp(0, unread.length);
+      for (final document in unread.sublist(offset, end)) {
+        batch.update(document.reference, <String, dynamic>{
+          'read': true,
+          'readAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
     }
-    await batch.commit();
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _ownedDocuments(
+    String uid,
+  ) async {
+    final byId = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+
+    final canonical = await _notifications
+        .where('customerId', isEqualTo: uid)
+        .get();
+    for (final document in canonical.docs) {
+      byId[document.id] = document;
+    }
+
+    try {
+      final legacy = await _notifications.where('userId', isEqualTo: uid).get();
+      for (final document in legacy.docs) {
+        byId[document.id] = document;
+      }
+    } on FirebaseException catch (error) {
+      if (error.code != 'permission-denied') rethrow;
+      // Canonical customerId records remain available when legacy reads close.
+    }
+
+    return List.unmodifiable(byId.values);
   }
 
   String _requireCurrentCustomer({required String customerId}) {
     final uid = _requireSignedInCustomer();
     if (customerId.isNotEmpty && customerId != uid) {
-      throw StateError('Customer context does not match Firebase user');
+      throw StateError('Customer context does not match Firebase user.');
     }
     return uid;
   }
@@ -98,7 +119,7 @@ class FirebaseNotificationRepository implements NotificationRepository {
   String _requireSignedInCustomer() {
     final uid = _firebaseAuth.currentUser?.uid;
     if (uid == null || uid.isEmpty) {
-      throw StateError('A signed-in Firebase customer is required');
+      throw StateError('A signed-in Firebase customer is required.');
     }
     return uid;
   }
@@ -108,121 +129,105 @@ CleanGoNotification _notificationFromDocument(
   DocumentSnapshot<Map<String, dynamic>> document,
 ) {
   final data = document.data() ?? const <String, dynamic>{};
-  final type = _notificationType(
-    data['type'],
-    title: _stringValue(data['title']),
-    message: _stringValue(data['message'] ?? data['body']),
-  );
-  final relatedEntityId = _nullableString(
-    data['pickupId'] ??
-        data['paymentId'] ??
-        data['subscriptionId'] ??
-        data['relatedEntityId'],
-  );
+  final title = _string(data['title']);
+  final message = _string(data['body'] ?? data['message']);
+  final type = _typeFromData(data, title: title, message: message);
 
   return CleanGoNotification(
     id: document.id,
-    customerId: _stringValue(data['userId'] ?? data['customerId']),
-    title: _fallbackText(data['title'], 'CleanGo update'),
-    message: _fallbackText(
-      data['message'] ?? data['body'],
-      'You have a new update.',
-    ),
+    customerId: _string(data['customerId'] ?? data['userId']),
+    title: title.isEmpty ? 'CLEANGO update' : title,
+    message: message.isEmpty ? 'You have a new CLEANGO update.' : message,
     type: type,
-    createdAt: _dateValue(data['createdAt']),
-    isRead: _boolValue(data['read'] ?? data['isRead']) ?? false,
+    createdAt: _date(data['createdAt']),
+    isRead: _bool(data['read'] ?? data['isRead']) ?? false,
+    readAt: _nullableDate(data['readAt']),
+    collectionId: _nullableString(data['collectionId'] ?? data['pickupId']),
+    bookingId: _nullableString(data['bookingId']),
+    subscriptionId: _nullableString(data['subscriptionId']),
+    paymentId: _nullableString(data['paymentId']),
+    collectorId: _nullableString(data['collectorId']),
+    deliveryStatus: _nullableString(data['deliveryStatus']) ?? 'recorded',
+    dataVersion: _integer(data['dataVersion']) ?? 1,
     actionLabel:
         _nullableString(data['actionLabel']) ?? _defaultActionLabel(type),
-    relatedEntityId: relatedEntityId,
   );
 }
 
-CleanGoNotificationType _notificationType(
-  dynamic rawType, {
+CleanGoNotificationType _typeFromData(
+  Map<String, dynamic> data, {
   required String title,
   required String message,
 }) {
-  final signal = [
-    rawType,
-    title,
-    message,
-  ].map(_stringValue).join(' ').toLowerCase().replaceAll('-', '_');
+  final direct = cleanGoNotificationTypeFromWire(data['type']);
+  if (direct != CleanGoNotificationType.unknown) return direct;
 
-  if (signal.contains('collector_assigned') ||
-      signal.contains('collector') ||
-      signal.contains('assigned')) {
-    return CleanGoNotificationType.collectorAssigned;
+  final signal = '${_string(data['type'])} $title $message'.toLowerCase();
+  if (signal.contains('on the way') || signal.contains('en route')) {
+    return CleanGoNotificationType.collectorOnTheWay;
   }
-  if (signal.contains('pickup_completed') ||
-      signal.contains('collection_completed') ||
-      signal.contains('completed')) {
-    return CleanGoNotificationType.pickupCompleted;
+  if (signal.contains('arrived') || signal.contains('arrive')) {
+    return CleanGoNotificationType.collectorArrived;
   }
-  if (signal.contains('payment_confirmed') ||
-      signal.contains('payment_success') ||
-      signal.contains('paid')) {
-    return CleanGoNotificationType.paymentConfirmed;
+  if (signal.contains('collect') && signal.contains('complet')) {
+    return CleanGoNotificationType.collectionCompleted;
   }
-  if (signal.contains('payment')) {
-    return CleanGoNotificationType.paymentReminder;
+  if (signal.contains('payment') &&
+      (signal.contains('received') || signal.contains('confirm'))) {
+    return CleanGoNotificationType.paymentReceived;
   }
-  if (signal.contains('subscription') &&
-      (signal.contains('renew') || signal.contains('billing'))) {
-    return CleanGoNotificationType.subscriptionRenewal;
+  if (signal.contains('subscription') || signal.contains('abonnement')) {
+    return CleanGoNotificationType.subscriptionExpiringFiveDays;
   }
-  if (signal.contains('service_area') || signal.contains('service area')) {
-    return CleanGoNotificationType.serviceAreaUpdate;
+  if (signal.contains('tomorrow') ||
+      signal.contains('reminder') ||
+      signal.contains('demain')) {
+    return CleanGoNotificationType.collectionReminderTomorrow;
   }
-  if (signal.contains('pickup') || signal.contains('collection')) {
-    return CleanGoNotificationType.pickupReminder;
-  }
-
-  return CleanGoNotificationType.serviceAreaUpdate;
+  return CleanGoNotificationType.unknown;
 }
 
 String? _defaultActionLabel(CleanGoNotificationType type) {
   return switch (type) {
-    CleanGoNotificationType.pickupReminder ||
-    CleanGoNotificationType.collectorAssigned ||
-    CleanGoNotificationType.pickupCompleted => 'View pickup',
-    CleanGoNotificationType.paymentReminder ||
-    CleanGoNotificationType.paymentConfirmed => 'View payment',
-    CleanGoNotificationType.subscriptionRenewal => 'View subscription',
-    CleanGoNotificationType.serviceAreaUpdate => null,
+    CleanGoNotificationType.collectionReminderTomorrow ||
+    CleanGoNotificationType.collectorOnTheWay ||
+    CleanGoNotificationType.collectorArrived ||
+    CleanGoNotificationType.collectionCompleted => 'View collection',
+    CleanGoNotificationType.paymentReceived => 'View payment',
+    CleanGoNotificationType.subscriptionExpiringFiveDays => 'View subscription',
+    CleanGoNotificationType.unknown => 'View notifications',
   };
 }
 
-String _fallbackText(dynamic value, String fallback) {
-  final text = _stringValue(value);
-  return text.isEmpty ? fallback : text;
+String _string(Object? value) => value?.toString().trim() ?? '';
+
+String? _nullableString(Object? value) {
+  final result = _string(value);
+  return result.isEmpty ? null : result;
 }
 
-String _stringValue(dynamic value) => value?.toString().trim() ?? '';
+DateTime _date(Object? value) =>
+    _nullableDate(value) ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
-String? _nullableString(dynamic value) {
-  final string = _stringValue(value);
-  return string.isEmpty ? null : string;
-}
-
-DateTime _dateValue(dynamic value) {
+DateTime? _nullableDate(Object? value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
   if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
-  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
-  return DateTime.now();
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }
 
-bool? _boolValue(dynamic value) {
+bool? _bool(Object? value) {
   if (value is bool) return value;
   if (value is num) return value != 0;
-  if (value is String) {
-    final normalized = value.toLowerCase().trim();
-    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
-      return true;
-    }
-    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
-      return false;
-    }
-  }
+  final normalized = _string(value).toLowerCase();
+  if (normalized == 'true' || normalized == '1') return true;
+  if (normalized == 'false' || normalized == '0') return false;
   return null;
+}
+
+int? _integer(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(_string(value));
 }

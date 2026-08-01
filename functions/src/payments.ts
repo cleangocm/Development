@@ -1,110 +1,83 @@
-import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
-import { createNotification } from './notifications.js';
 
-const providers = ['mtn_momo', 'orange_money', 'cash', 'manual'] as const;
-export type PaymentProvider = (typeof providers)[number];
-const terminalStatuses = ['paid', 'cancelled', 'refunded'] as const;
-
-function isAdmin(token: Record<string, unknown>) {
-  return token.admin === true || token.role === 'admin';
-}
-
-function assertProvider(value: unknown): PaymentProvider {
-  if (typeof value !== 'string' || !providers.includes(value as PaymentProvider)) {
-    throw new HttpsError('invalid-argument', 'Choose a supported payment provider.');
-  }
-  return value as PaymentProvider;
-}
-
-export function normalizeProviderStatus(status: unknown) {
-  const value = String(status ?? '').toLowerCase();
-  if (['paid', 'success', 'successful', 'completed', 'succeeded'].includes(value)) return 'paid';
-  if (['failed', 'failure', 'declined', 'expired'].includes(value)) return 'failed';
-  if (['cancelled', 'canceled'].includes(value)) return 'cancelled';
-  return 'pending';
-}
-
-function paymentReference(provider: PaymentProvider, paymentId: string) {
-  return `${provider}:${paymentId}:${Date.now()}`;
-}
+const paymentMethods = ['mtn_mobile_money', 'orange_money', 'cash'] as const;
+type PaymentMethod = (typeof paymentMethods)[number];
+const manualStatuses = ['paid', 'failed', 'cancelled'] as const;
+type ManualPaymentStatus = (typeof manualStatuses)[number];
 
 function firestore() {
   return getFirestore();
 }
 
+function isAdmin(token: Record<string, unknown>) {
+  return token.admin === true || token.role === 'admin';
+}
+
+function assertPaymentMethod(value: unknown): PaymentMethod {
+  if (typeof value !== 'string' || !paymentMethods.includes(value as PaymentMethod)) {
+    throw new HttpsError('invalid-argument', 'Choose a supported CLEANGO payment method.');
+  }
+  return value as PaymentMethod;
+}
+
+function assertManualStatus(value: unknown): ManualPaymentStatus {
+  if (typeof value !== 'string' || !manualStatuses.includes(value as ManualPaymentStatus)) {
+    throw new HttpsError('invalid-argument', 'Choose paid, failed, or cancelled.');
+  }
+  return value as ManualPaymentStatus;
+}
+
 interface InitiatePaymentInput {
   paymentId?: string;
   provider?: string;
-  phoneNumber?: string;
+  paymentMethod?: string;
 }
 
 export const initiatePayment = onCall<InitiatePaymentInput>(
   { region: 'europe-west1' },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
     const paymentId = request.data.paymentId?.trim();
-    const provider = assertProvider(request.data.provider);
-    const phoneNumber = request.data.phoneNumber?.trim() || '';
-    if (!paymentId) throw new HttpsError('invalid-argument', 'paymentId is required.');
-    if (['mtn_momo', 'orange_money'].includes(provider) && !phoneNumber) {
-      throw new HttpsError('invalid-argument', 'A mobile money phone number is required.');
+    const method = assertPaymentMethod(
+      request.data.paymentMethod ?? request.data.provider,
+    );
+    if (!paymentId) {
+      throw new HttpsError('invalid-argument', 'paymentId is required.');
+    }
+    if (method !== 'cash') {
+      throw new HttpsError(
+        'failed-precondition',
+        'This mobile money integration is not configured. No payment was initiated.',
+        { reason: 'integration_not_configured', paymentMethod: method },
+      );
     }
 
-    const db = firestore();
-    const paymentRef = db.collection('payments').doc(paymentId);
-    const snapshot = await paymentRef.get();
-    if (!snapshot.exists) throw new HttpsError('not-found', 'Payment not found.');
+    const snapshot = await firestore().collection('payments').doc(paymentId).get();
+    if (!snapshot.exists) {
+      throw new HttpsError('not-found', 'Payment not found.');
+    }
     const payment = snapshot.data()!;
-    const admin = isAdmin(request.auth.token);
-    if (!admin && payment.customerId !== request.auth.uid) {
-      throw new HttpsError('permission-denied', 'You cannot initiate this payment.');
+    if (!isAdmin(request.auth.token) && payment.customerId !== request.auth.uid) {
+      throw new HttpsError('permission-denied', 'You cannot access this payment.');
     }
-    if (payment.status === 'paid') {
-      return { success: true, paymentId, status: 'paid', alreadyPaid: true };
+    if (payment.paymentMethod !== 'cash') {
+      throw new HttpsError('failed-precondition', 'This is not a cash payment.');
     }
-    if (terminalStatuses.includes(payment.status)) {
-      throw new HttpsError('failed-precondition', 'This payment can no longer be initiated.');
+    const status = String(payment.paymentStatus ?? '');
+    if (!['awaitingCashConfirmation', 'paid'].includes(status)) {
+      throw new HttpsError('failed-precondition', 'This cash payment is no longer active.');
     }
 
-    const providerReference = payment.providerReference || paymentReference(provider, paymentId);
-    const instructions = provider === 'mtn_momo'
-      ? 'MTN Mobile Money request recorded. Await provider callback or admin verification.'
-      : provider === 'orange_money'
-        ? 'Orange Money request recorded. Await provider callback or admin verification.'
-        : 'Cash/manual payment recorded. Admin must verify before it becomes paid.';
-
-    await paymentRef.set({
-      provider,
-      providerReference,
-      phoneNumber,
-      status: 'pending',
-      initiationStatus: ['mtn_momo', 'orange_money'].includes(provider)
-        ? 'awaiting_provider_credentials'
-        : 'manual_verification_required',
-      instructions,
-      initiatedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    await db.collection('auditLogs').add({
-      action: 'payment.initiated',
-      actorUid: request.auth.uid,
+    return {
+      success: true,
       paymentId,
-      provider,
-      providerReference,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    await createNotification({
-      userId: payment.customerId,
-      type: 'payment_initiated',
-      title: 'Payment pending',
-      body: instructions,
-      pickupId: payment.pickupId ?? null,
-      paymentId,
-      subscriptionId: payment.subscriptionId ?? null,
-    });
-
-    return { success: true, paymentId, provider, providerReference, status: 'pending', instructions };
+      paymentMethod: 'cash',
+      paymentStatus: status,
+      requiresAuthorizedConfirmation: status !== 'paid',
+    };
   },
 );
 
@@ -112,67 +85,101 @@ interface VerifyPaymentInput {
   paymentId?: string;
   status?: string;
   note?: string;
-  transactionId?: string;
 }
 
 export const verifyPaymentManually = onCall<VerifyPaymentInput>(
   { region: 'europe-west1' },
   async (request) => {
-    if (!request.auth) throw new HttpsError('unauthenticated', 'You must be signed in.');
-    if (!isAdmin(request.auth.token)) throw new HttpsError('permission-denied', 'Only admins can verify payments.');
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    if (!isAdmin(request.auth.token)) {
+      throw new HttpsError('permission-denied', 'Only admins can verify cash payments.');
+    }
     const paymentId = request.data.paymentId?.trim();
-    const nextStatus = normalizeProviderStatus(request.data.status);
-    if (!paymentId || !['paid', 'failed', 'cancelled'].includes(nextStatus)) {
-      throw new HttpsError('invalid-argument', 'paymentId and a final status are required.');
+    const nextStatus = assertManualStatus(request.data.status);
+    if (!paymentId) {
+      throw new HttpsError('invalid-argument', 'paymentId is required.');
     }
 
     const db = firestore();
     const paymentRef = db.collection('payments').doc(paymentId);
-    let customerId = '';
-    let pickupId: string | null = null;
-    let subscriptionId: string | null = null;
     const result = await db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(paymentRef);
-      if (!snapshot.exists) throw new HttpsError('not-found', 'Payment not found.');
-      const payment = snapshot.data()!;
-      customerId = payment.customerId ?? '';
-      pickupId = payment.pickupId ?? null;
-      subscriptionId = payment.subscriptionId ?? null;
-      if (payment.status === 'paid') return { alreadyProcessed: true, status: 'paid' };
-      if (['cancelled', 'refunded'].includes(payment.status)) {
-        throw new HttpsError('failed-precondition', 'This payment is already closed.');
+      if (!snapshot.exists) {
+        throw new HttpsError('not-found', 'Payment not found.');
       }
-      const updates: Record<string, unknown> = {
-        status: nextStatus,
-        manualVerificationNote: request.data.note?.trim() || '',
-        providerTransactionId: request.data.transactionId?.trim() || payment.providerTransactionId || null,
-        verifiedBy: request.auth!.uid,
-        verifiedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+      const payment = snapshot.data()!;
+      const currentStatus = String(payment.paymentStatus ?? '');
+      if (payment.paymentMethod !== 'cash') {
+        throw new HttpsError(
+          'failed-precondition',
+          'Only cash payments can be manually verified.',
+        );
+      }
+      if (currentStatus === 'paid') {
+        return { alreadyProcessed: true, paymentStatus: 'paid' };
+      }
+      if (currentStatus !== 'awaitingCashConfirmation') {
+        throw new HttpsError(
+          'failed-precondition',
+          'Only cash awaiting confirmation can be verified.',
+        );
+      }
+
+      const now = FieldValue.serverTimestamp();
+      const update: Record<string, unknown> = {
+        paymentStatus: nextStatus,
+        updatedAt: now,
+        confirmedBy: request.auth!.uid,
+        confirmationSource: 'adminCashVerification',
+        manualVerificationNote: request.data.note?.trim() || null,
       };
-      if (nextStatus === 'paid') updates.paidAt = FieldValue.serverTimestamp();
-      transaction.update(paymentRef, updates);
+      if (nextStatus === 'paid') {
+        update.confirmedAt = now;
+        update.failedAt = null;
+        update.cancelledAt = null;
+        update.failureCode = null;
+        update.failureMessageSafe = null;
+      } else if (nextStatus === 'failed') {
+        update.failedAt = now;
+        update.failureCode = 'cash_not_received';
+        update.failureMessageSafe = 'Cash payment was not confirmed.';
+      } else {
+        update.cancelledAt = now;
+      }
+      transaction.update(paymentRef, update);
+
+      const bookingId = String(payment.bookingId ?? '').trim();
+      if (nextStatus === 'paid' && bookingId) {
+        transaction.set(db.collection('collections').doc(bookingId), {
+          paymentId,
+          paymentStatus: 'paid',
+          paymentConfirmedAt: now,
+          updatedAt: now,
+        }, { merge: true });
+      }
+      const subscriptionId = String(payment.subscriptionId ?? '').trim();
+      if (nextStatus === 'paid' && subscriptionId) {
+        transaction.set(db.collection('subscriptions').doc(subscriptionId), {
+          paymentId,
+          paymentStatus: 'paid',
+          paymentConfirmedAt: now,
+          updatedAt: now,
+        }, { merge: true });
+      }
+
       transaction.set(db.collection('auditLogs').doc(), {
-        action: 'payment.manually_verified',
+        action: 'payment.cash.verified',
         actorUid: request.auth!.uid,
         paymentId,
-        previousStatus: payment.status,
+        previousStatus: currentStatus,
         newStatus: nextStatus,
-        createdAt: FieldValue.serverTimestamp(),
+        createdAt: now,
       });
-      return { alreadyProcessed: false, status: nextStatus };
+      return { alreadyProcessed: false, paymentStatus: nextStatus };
     });
-    if (!result.alreadyProcessed) {
-      await createNotification({
-        userId: customerId,
-        type: 'payment_status',
-        title: `Payment ${result.status}`,
-        body: `Your CleanGo payment was marked ${result.status}.`,
-        pickupId,
-        paymentId,
-        subscriptionId,
-      });
-    }
+
     return { success: true, paymentId, ...result };
   },
 );
@@ -184,92 +191,9 @@ export const paymentProviderCallback = onRequest(
       response.status(405).json({ error: 'method_not_allowed' });
       return;
     }
-    const expectedSecret = process.env.PAYMENT_CALLBACK_SECRET;
-    if (!expectedSecret) {
-      response.status(503).json({ error: 'callback_secret_not_configured' });
-      return;
-    }
-    if (request.header('x-cleango-payment-secret') !== expectedSecret) {
-      response.status(401).json({ error: 'unauthorized' });
-      return;
-    }
-
-    const provider = request.body?.provider;
-    const providerReference = String(request.body?.providerReference ?? '').trim();
-    const providerStatus = normalizeProviderStatus(request.body?.status);
-    const transactionId = String(request.body?.transactionId ?? '').trim();
-    const amountXaf = Number(request.body?.amountXaf ?? 0);
-    if (!providers.includes(provider) || !providerReference) {
-      response.status(400).json({ error: 'invalid_payload' });
-      return;
-    }
-
-    const db = firestore();
-    const query = await db.collection('payments')
-      .where('providerReference', '==', providerReference)
-      .limit(1)
-      .get();
-    if (query.empty) {
-      response.status(404).json({ error: 'payment_not_found' });
-      return;
-    }
-
-    const paymentRef = query.docs[0].ref;
-    let customerId = '';
-    let pickupId: string | null = null;
-    let subscriptionId: string | null = null;
-    const result = await db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(paymentRef);
-      const payment = snapshot.data()!;
-      customerId = payment.customerId ?? '';
-      pickupId = payment.pickupId ?? null;
-      subscriptionId = payment.subscriptionId ?? null;
-      if (payment.status === 'paid') return { alreadyProcessed: true, status: 'paid' };
-      if (amountXaf > 0 && Number(payment.amountXaf ?? 0) > 0 && amountXaf !== Number(payment.amountXaf)) {
-        transaction.set(db.collection('auditLogs').doc(), {
-          action: 'payment.callback.amount_mismatch',
-          paymentId: snapshot.id,
-          provider,
-          providerReference,
-          expectedAmountXaf: payment.amountXaf,
-          receivedAmountXaf: amountXaf,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-        return { alreadyProcessed: false, status: payment.status, rejected: 'amount_mismatch' };
-      }
-
-      const updates: Record<string, unknown> = {
-        status: providerStatus,
-        providerStatus,
-        providerTransactionId: transactionId || payment.providerTransactionId || null,
-        callbackReceivedAt: Timestamp.now(),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-      if (providerStatus === 'paid') updates.paidAt = FieldValue.serverTimestamp();
-      transaction.update(paymentRef, updates);
-      transaction.set(db.collection('auditLogs').doc(), {
-        action: 'payment.callback_verified',
-        paymentId: snapshot.id,
-        provider,
-        providerReference,
-        previousStatus: payment.status,
-        newStatus: providerStatus,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      return { alreadyProcessed: false, status: providerStatus };
+    response.status(503).json({
+      error: 'integration_not_configured',
+      message: 'Mobile money callbacks are disabled until a verified provider adapter is configured.',
     });
-    if (!result.alreadyProcessed && !result.rejected) {
-      await createNotification({
-        userId: customerId,
-        type: 'payment_status',
-        title: `Payment ${result.status}`,
-        body: `Your CleanGo payment provider returned ${result.status}.`,
-        pickupId,
-        paymentId: paymentRef.id,
-        subscriptionId,
-      });
-    }
-
-    response.status(200).json({ success: true, paymentId: paymentRef.id, ...result });
   },
 );

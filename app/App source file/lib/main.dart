@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:get/get.dart';
 import 'package:ultrawash/Controller_Binding.dart';
 import 'package:ultrawash/core/cleango/di/cleango_service_locator.dart';
@@ -17,20 +16,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final firebaseReady = await _initializeFirebase();
 
-  const stripePublishableKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
-  if (stripePublishableKey.isNotEmpty) {
-    Stripe.publishableKey = stripePublishableKey;
-    Stripe.merchantIdentifier = 'merchant.cm.cleangocm';
-    Stripe.urlScheme = 'cleangocm';
-    await Stripe.instance.applySettings();
-  }
-
   // Load token from storage before controllers initialize.
   final sessionStore = SecureSessionStore();
   await sessionStore.readAccessToken();
   _configureCleanGoRuntime(sessionStore);
   if (firebaseReady && DataModeConfig.isFirebase) {
-    _messagingService = FirebaseMessagingService();
+    _messagingService = FirebaseMessagingService.instance;
     await _messagingService!.initialize();
   }
   if (DataModeConfig.current == CleanGoDataMode.restHybrid) {

@@ -3,51 +3,39 @@ import 'package:ultrawash/core/cleango/models/notification.dart';
 
 extension NotificationTypeStyle on CleanGoNotificationType {
   String get label => switch (this) {
-    CleanGoNotificationType.pickupReminder => 'Pickup reminder',
-    CleanGoNotificationType.collectorAssigned => 'Collector assigned',
-    CleanGoNotificationType.pickupCompleted => 'Pickup completed',
-    CleanGoNotificationType.paymentReminder => 'Payment reminder',
-    CleanGoNotificationType.paymentConfirmed => 'Payment confirmed',
-    CleanGoNotificationType.subscriptionRenewal => 'Subscription renewal',
-    CleanGoNotificationType.serviceAreaUpdate => 'Service area update',
+    CleanGoNotificationType.collectionReminderTomorrow => 'Collection reminder',
+    CleanGoNotificationType.collectorOnTheWay => 'Collector on the way',
+    CleanGoNotificationType.collectorArrived => 'Collector arrived',
+    CleanGoNotificationType.collectionCompleted => 'Collection completed',
+    CleanGoNotificationType.paymentReceived => 'Payment received',
+    CleanGoNotificationType.subscriptionExpiringFiveDays =>
+      'Subscription expiring',
+    CleanGoNotificationType.unknown => 'CLEANGO update',
   };
 
   IconData get icon => switch (this) {
-    CleanGoNotificationType.pickupReminder => Icons.event_outlined,
-    CleanGoNotificationType.collectorAssigned => Icons.local_shipping_outlined,
-    CleanGoNotificationType.pickupCompleted => Icons.check_circle_outline,
-    CleanGoNotificationType.paymentReminder =>
-      Icons.account_balance_wallet_outlined,
-    CleanGoNotificationType.paymentConfirmed => Icons.receipt_long_outlined,
-    CleanGoNotificationType.subscriptionRenewal => Icons.autorenew,
-    CleanGoNotificationType.serviceAreaUpdate => Icons.location_city_outlined,
+    CleanGoNotificationType.collectionReminderTomorrow => Icons.event_outlined,
+    CleanGoNotificationType.collectorOnTheWay => Icons.route_outlined,
+    CleanGoNotificationType.collectorArrived => Icons.location_on_outlined,
+    CleanGoNotificationType.collectionCompleted => Icons.check_circle_outline,
+    CleanGoNotificationType.paymentReceived => Icons.receipt_long_outlined,
+    CleanGoNotificationType.subscriptionExpiringFiveDays => Icons.autorenew,
+    CleanGoNotificationType.unknown => Icons.notifications_outlined,
   };
 
   Color get color => switch (this) {
-    CleanGoNotificationType.pickupReminder => const Color(0xFF1073E6),
-    CleanGoNotificationType.collectorAssigned => const Color(0xFF6D28D9),
-    CleanGoNotificationType.pickupCompleted => const Color(0xFF16A34A),
-    CleanGoNotificationType.paymentReminder => const Color(0xFFF59E0B),
-    CleanGoNotificationType.paymentConfirmed => const Color(0xFF15803D),
-    CleanGoNotificationType.subscriptionRenewal => const Color(0xFF0F766E),
-    CleanGoNotificationType.serviceAreaUpdate => const Color(0xFF475569),
+    CleanGoNotificationType.collectionReminderTomorrow => const Color(
+      0xFF1073E6,
+    ),
+    CleanGoNotificationType.collectorOnTheWay => const Color(0xFF6D28D9),
+    CleanGoNotificationType.collectorArrived => const Color(0xFFB45309),
+    CleanGoNotificationType.collectionCompleted => const Color(0xFF16A34A),
+    CleanGoNotificationType.paymentReceived => const Color(0xFF15803D),
+    CleanGoNotificationType.subscriptionExpiringFiveDays => const Color(
+      0xFF0F766E,
+    ),
+    CleanGoNotificationType.unknown => const Color(0xFF475569),
   };
-
-  bool get isCollection => switch (this) {
-    CleanGoNotificationType.pickupReminder ||
-    CleanGoNotificationType.collectorAssigned ||
-    CleanGoNotificationType.pickupCompleted => true,
-    _ => false,
-  };
-
-  bool get isPayment => switch (this) {
-    CleanGoNotificationType.paymentReminder ||
-    CleanGoNotificationType.paymentConfirmed ||
-    CleanGoNotificationType.subscriptionRenewal => true,
-    _ => false,
-  };
-
-  bool get isSystem => this == CleanGoNotificationType.serviceAreaUpdate;
 }
 
 class NotificationCard extends StatelessWidget {

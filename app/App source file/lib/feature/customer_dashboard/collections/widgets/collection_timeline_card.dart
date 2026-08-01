@@ -107,6 +107,8 @@ class _Timeline extends StatelessWidget {
     CollectionStatus.pending,
     CollectionStatus.confirmed,
     CollectionStatus.assigned,
+    CollectionStatus.onTheWay,
+    CollectionStatus.arrived,
     CollectionStatus.inProgress,
     CollectionStatus.completed,
   ];

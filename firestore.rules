@@ -450,6 +450,261 @@ service cloud.firestore {
           'quotationStatus', 'quotationAcceptedAt', 'updatedAt'
         ]);
     }
+    function collectorProfile() {
+      return get(
+        /databases/$(database)/documents/collectors/$(request.auth.uid)
+      ).data;
+    }
+
+    function isApprovedActiveCollector() {
+      return isCollector()
+        && exists(
+          /databases/$(database)/documents/collectors/$(request.auth.uid)
+        )
+        && collectorProfile().get('uid', request.auth.uid) == request.auth.uid
+        && collectorProfile().get('role', '') == 'collector'
+        && collectorProfile().get('approvalStatus', '') == 'approved'
+        && collectorProfile().get('accountStatus', '') == 'active';
+    }
+
+    function validCollectorAvailabilityUpdate(collectorId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let reason = request.resource.data.get('availabilityReason', null);
+      return isOwner(collectorId)
+        && isApprovedActiveCollector()
+        && request.resource.data.get('uid', collectorId) == collectorId
+        && changed.hasOnly([
+          'currentAvailability', 'availabilityReason',
+          'availabilityUpdatedAt', 'lastActiveAt', 'updatedAt'
+        ])
+        && request.resource.data.currentAvailability in [
+          'available', 'unavailable', 'onBreak', 'offDuty'
+        ]
+        && (reason == null || (reason is string && reason.size() <= 200))
+        && request.resource.data.availabilityUpdatedAt == request.time
+        && request.resource.data.lastActiveAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validCollectorCollectionUpdate() {
+      let from = resource.data.status;
+      let to = request.resource.data.status;
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let assigned = resource.data.assignedWorkerId == request.auth.uid
+        && request.resource.data.assignedWorkerId == resource.data.assignedWorkerId;
+      let common = isApprovedActiveCollector()
+        && assigned
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.get('pricingSnapshot', null)
+          == resource.data.get('pricingSnapshot', null)
+        && request.resource.data.get('pricing', null)
+          == resource.data.get('pricing', null)
+        && request.resource.data.updatedAt == request.time;
+      return common
+        && ((from == 'assigned'
+            && to == 'onTheWay'
+            && request.resource.data.onTheWayAt == request.time
+            && changed.hasOnly(['status', 'onTheWayAt', 'updatedAt']))
+          || (from == 'onTheWay'
+            && to == 'arrived'
+            && request.resource.data.arrivedAt == request.time
+            && changed.hasOnly(['status', 'arrivedAt', 'updatedAt']))
+          || (from == 'arrived'
+            && to == 'inProgress'
+            && request.resource.data.startedAt == request.time
+            && changed.hasOnly(['status', 'startedAt', 'updatedAt']))
+          || (from == 'inProgress'
+            && to == 'completed'
+            && request.resource.data.completedAt == request.time
+            && changed.hasOnly(['status', 'completedAt', 'updatedAt']))
+          || (from in ['assigned', 'onTheWay', 'arrived', 'inProgress']
+            && to == 'missed'
+            && request.resource.data.missedAt == request.time
+            && request.resource.data.missedReason is string
+            && request.resource.data.missedReason.size() >= 3
+            && request.resource.data.missedReason.size() <= 300
+            && changed.hasOnly([
+              'status', 'missedAt', 'missedReason', 'updatedAt'
+            ])));
+    }
+
+    function exactPaymentPricingKeys(pricing) {
+      return pricing is map
+        && pricing.keys().hasAll([
+          'amount', 'currency', 'sourceType', 'sourceId', 'pricingVersion'
+        ])
+        && pricing.keys().hasOnly([
+          'amount', 'currency', 'sourceType', 'sourceId', 'pricingVersion'
+        ])
+        && pricing.amount is int
+        && pricing.amount > 0
+        && pricing.currency == 'XAF'
+        && pricing.sourceType in ['collection', 'quotation', 'subscription']
+        && pricing.sourceId is string
+        && pricing.pricingVersion is string;
+    }
+
+    function validCollectionPaymentSource(data) {
+      let collection = get(
+        /databases/$(database)/documents/collections/$(data.bookingId)
+      ).data;
+      let sourcePricing = collection.get(
+        'pricingSnapshot', collection.get('pricing', {})
+      );
+      return data.bookingId is string
+        && data.subscriptionId == null
+        && data.pricingSnapshot.sourceId == data.bookingId
+        && collection.customerId == request.auth.uid
+        && ((data.purpose == 'oneTimePickup'
+            && data.quotationId == null
+            && data.pricingSnapshot.sourceType == 'collection'
+            && data.amount == sourcePricing.get('totalAmount', null)
+            && data.pricingSnapshot.pricingVersion
+              == sourcePricing.get('pricingVersion', ''))
+          || (data.purpose == 'quotationPayment'
+            && data.quotationId == data.bookingId
+            && collection.quotationStatus == 'accepted'
+            && data.pricingSnapshot.sourceType == 'quotation'
+            && data.amount == collection.quotedAmount
+            && data.pricingSnapshot.pricingVersion
+              == sourcePricing.get('pricingVersion', ''))
+          || (data.purpose == 'extraBagCharge'
+            && data.quotationId == null
+            && data.pricingSnapshot.sourceType == 'collection'
+            && data.amount == sourcePricing.get('extraBagAmount', null)
+            && data.pricingSnapshot.pricingVersion
+              == sourcePricing.get('pricingVersion', '')));
+    }
+
+    function validSubscriptionPaymentSource(data) {
+      let subscription = get(
+        /databases/$(database)/documents/subscriptions/$(data.subscriptionId)
+      ).data;
+      let plan = subscription.planSnapshot;
+      return data.subscriptionId is string
+        && data.bookingId == null
+        && data.quotationId == null
+        && data.purpose in ['subscriptionPurchase', 'subscriptionRenewal']
+        && data.pricingSnapshot.sourceType == 'subscription'
+        && data.pricingSnapshot.sourceId == data.subscriptionId
+        && subscription.customerId == request.auth.uid
+        && plan.requiresQuotation == false
+        && plan.monthlyPriceXaf is int
+        && data.amount == plan.monthlyPriceXaf
+        && data.pricingSnapshot.pricingVersion == subscription.pricingVersion;
+    }
+
+    function validPaymentSource(data) {
+      return (data.purpose in [
+          'oneTimePickup', 'quotationPayment', 'extraBagCharge'
+        ] && validCollectionPaymentSource(data))
+        || (data.purpose in [
+          'subscriptionPurchase', 'subscriptionRenewal'
+        ] && validSubscriptionPaymentSource(data));
+    }
+
+    function validNewPayment(paymentId) {
+      let data = request.resource.data;
+      let receipt = data.receipt;
+      return signedIn()
+        && paymentId.matches('[A-Za-z0-9]{20}')
+        && data.keys().hasAll([
+          'customerId', 'paymentMethod', 'paymentStatus', 'amount',
+          'currency', 'purpose', 'bookingId', 'subscriptionId',
+          'quotationId', 'providerReference', 'externalTransactionId',
+          'idempotencyKey', 'phoneNumberMasked', 'initiatedAt', 'updatedAt',
+          'confirmedAt', 'failedAt', 'cancelledAt', 'confirmedBy',
+          'confirmationSource', 'failureCode', 'failureMessageSafe',
+          'pricingSnapshot', 'receipt', 'metadataVersion'
+        ])
+        && data.keys().hasOnly([
+          'customerId', 'paymentMethod', 'paymentStatus', 'amount',
+          'currency', 'purpose', 'bookingId', 'subscriptionId',
+          'quotationId', 'providerReference', 'externalTransactionId',
+          'idempotencyKey', 'phoneNumberMasked', 'initiatedAt', 'updatedAt',
+          'confirmedAt', 'failedAt', 'cancelledAt', 'confirmedBy',
+          'confirmationSource', 'failureCode', 'failureMessageSafe',
+          'pricingSnapshot', 'receipt', 'metadataVersion'
+        ])
+        && data.customerId == request.auth.uid
+        && data.paymentMethod == 'cash'
+        && data.paymentStatus == 'awaitingCashConfirmation'
+        && data.amount is int
+        && data.amount > 0
+        && data.currency == 'XAF'
+        && data.idempotencyKey.matches('[0-9a-f]{64}')
+        && data.phoneNumberMasked == null
+        && data.providerReference == null
+        && data.externalTransactionId == null
+        && data.confirmedAt == null
+        && data.failedAt == null
+        && data.cancelledAt == null
+        && data.confirmedBy == null
+        && data.confirmationSource == null
+        && data.failureCode == null
+        && data.failureMessageSafe == null
+        && data.initiatedAt == request.time
+        && data.updatedAt == request.time
+        && data.metadataVersion == 1
+        && exactPaymentPricingKeys(data.pricingSnapshot)
+        && data.pricingSnapshot.amount == data.amount
+        && receipt is map
+        && receipt.keys().hasAll([
+          'available', 'receiptNumber', 'downloadUrl', 'issuedAt'
+        ])
+        && receipt.keys().hasOnly([
+          'available', 'receiptNumber', 'downloadUrl', 'issuedAt'
+        ])
+        && receipt.available == false
+        && receipt.receiptNumber == null
+        && receipt.downloadUrl == null
+        && receipt.issuedAt == null
+        && validPaymentSource(data)
+        && getAfter(
+          /databases/$(database)/documents/paymentIdempotency/$(data.idempotencyKey)
+        ).data.customerId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/paymentIdempotency/$(data.idempotencyKey)
+        ).data.paymentId == paymentId;
+    }
+
+    function validNewPaymentLock(lockId) {
+      let data = request.resource.data;
+      return signedIn()
+        && lockId.matches('[0-9a-f]{64}')
+        && data.keys().hasAll([
+          'customerId', 'paymentId', 'purpose', 'sourceId', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'customerId', 'paymentId', 'purpose', 'sourceId', 'createdAt'
+        ])
+        && data.customerId == request.auth.uid
+        && data.paymentId.matches('[A-Za-z0-9]{20}')
+        && data.purpose in [
+          'oneTimePickup', 'subscriptionPurchase', 'subscriptionRenewal',
+          'quotationPayment', 'extraBagCharge'
+        ]
+        && data.sourceId is string
+        && data.sourceId.size() > 0
+        && data.createdAt == request.time
+        && getAfter(
+          /databases/$(database)/documents/payments/$(data.paymentId)
+        ).data.customerId == request.auth.uid
+        && getAfter(
+          /databases/$(database)/documents/payments/$(data.paymentId)
+        ).data.idempotencyKey == lockId
+        && getAfter(
+          /databases/$(database)/documents/payments/$(data.paymentId)
+        ).data.purpose == data.purpose;
+    }
+
+    function ownsNotification() {
+      return signedIn()
+        && resource.data.get(
+          'customerId', resource.data.get('userId', '')
+        ) == request.auth.uid;
+    }
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId)
@@ -522,12 +777,8 @@ service cloud.firestore {
       allow read: if isOwner(collectorId) || isAdmin();
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
-        || (isOwner(collectorId)
-          && request.resource.data.userId == resource.data.userId
-          && request.resource.data.active == resource.data.active
-          && request.resource.data.payRate == resource.data.payRate);
+        || validCollectorAvailabilityUpdate(collectorId);
     }
-
     match /addresses/{addressId} {
       allow create: if signedIn()
         && request.resource.data.customerId == request.auth.uid;
@@ -557,13 +808,15 @@ service cloud.firestore {
       allow create: if isAdmin() || validNewCollection(collectionId);
       allow read: if isAdmin()
         || ownsExistingCustomerRecord()
-        || (isCollector()
+        || (isApprovedActiveCollector()
           && resource.data.assignedWorkerId == request.auth.uid);
       allow update: if isAdmin()
         || validCustomerCollectionCancellation()
-        || validCustomerQuotationAcceptance();
+        || validCustomerQuotationAcceptance()
+        || validCollectorCollectionUpdate();
       allow delete: if false;
     }
+
     match /pickups/{pickupId} {
       allow create: if ownsNewCustomerRecord()
         && request.resource.data.status == 'scheduled'
@@ -602,11 +855,57 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow read: if isAdmin() || ownsExistingCustomerRecord();
-      allow create: if ownsNewCustomerRecord()
-        && request.resource.data.status == 'pending';
+      allow create: if validNewPayment(paymentId);
       allow update, delete: if isAdmin();
     }
 
+    match /paymentIdempotency/{lockId} {
+      allow get: if signedIn()
+        && (!exists(
+          /databases/$(database)/documents/paymentIdempotency/$(lockId)
+        ) || resource.data.customerId == request.auth.uid);
+      allow list: if false;
+      allow create: if validNewPaymentLock(lockId);
+      allow update, delete: if false;
+    }
+
+    match /supportRequests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll([
+          'customerId', 'category', 'subject', 'message', 'collectionId',
+          'status', 'createdAt', 'updatedAt', 'closedAt', 'assignedTo',
+          'adminNotes', 'metadataVersion'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'customerId', 'category', 'subject', 'message', 'collectionId',
+          'status', 'createdAt', 'updatedAt', 'closedAt', 'assignedTo',
+          'adminNotes', 'metadataVersion'
+        ])
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.category in [
+          'general', 'missedCollection', 'billing', 'account'
+        ]
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() >= 3
+        && request.resource.data.subject.size() <= 120
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 10
+        && request.resource.data.message.size() <= 2000
+        && (request.resource.data.collectionId == null
+          || (request.resource.data.collectionId is string
+            && get(
+              /databases/$(database)/documents/collections/$(request.resource.data.collectionId)
+            ).data.customerId == request.auth.uid))
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.closedAt == null
+        && request.resource.data.assignedTo == null
+        && request.resource.data.adminNotes == null
+        && request.resource.data.metadataVersion == 1;
+      allow read: if isAdmin() || ownsExistingCustomerRecord();
+      allow update, delete: if isAdmin();
+    }
     match /collectorDailyStats/{statId} {
       allow read: if isAdmin()
         || (isCollector() && resource.data.collectorId == request.auth.uid);
@@ -614,21 +913,22 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if isAdmin()
-        || (signedIn() && resource.data.userId == request.auth.uid);
-      allow update: if signedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+      allow read: if isAdmin() || ownsNotification();
+      allow update: if ownsNotification()
+        && request.resource.data.get(
+          'customerId', request.resource.data.get('userId', '')
+        ) == request.auth.uid
+        && request.resource.data.read == true
+        && request.resource.data.readAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'read', 'readAt'
+        ]);
       allow create, delete: if false;
     }
-
     match /deviceTokens/{tokenId} {
-      allow read: if isAdmin()
-        || (signedIn() && resource.data.userId == request.auth.uid);
-      allow create, update, delete: if signedIn()
-        && request.resource.data.userId == request.auth.uid;
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
     }
-
     match /settings/{settingId} {
       allow read: if signedIn();
       allow write: if isAdmin();

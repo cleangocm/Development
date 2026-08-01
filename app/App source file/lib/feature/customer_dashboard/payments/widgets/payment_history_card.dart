@@ -1,50 +1,98 @@
 import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/payment.dart';
-import 'package:ultrawash/feature/customer_dashboard/payments/widgets/payment_method_card.dart';
 
-extension PaymentStatusStyle on PaymentStatus {
-  String get label => switch (this) {
-    PaymentStatus.paid => 'Paid',
-    PaymentStatus.pending => 'Pending',
-    PaymentStatus.processing => 'Processing',
-    PaymentStatus.failed => 'Failed',
-    PaymentStatus.refunded => 'Refunded',
-  };
+class PaymentHistoryCard extends StatelessWidget {
+  const PaymentHistoryCard({
+    super.key,
+    required this.payment,
+    required this.onViewDetails,
+  });
 
-  Color get foreground => switch (this) {
-    PaymentStatus.paid => const Color(0xFF15803D),
-    PaymentStatus.pending => const Color(0xFFB45309),
-    PaymentStatus.processing => const Color(0xFF1D4ED8),
-    PaymentStatus.failed => const Color(0xFFB91C1C),
-    PaymentStatus.refunded => const Color(0xFF6D28D9),
-  };
+  final Payment payment;
+  final VoidCallback onViewDetails;
 
-  Color get background => switch (this) {
-    PaymentStatus.paid => const Color(0xFFDDF7E5),
-    PaymentStatus.pending => const Color(0xFFFEF3C7),
-    PaymentStatus.processing => const Color(0xFFDBEAFE),
-    PaymentStatus.failed => const Color(0xFFFEE2E2),
-    PaymentStatus.refunded => const Color(0xFFEDE9FE),
-  };
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onViewDetails,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      payment.relatedServiceLabel,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  _StatusChip(status: payment.status),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _Row(label: 'Amount', value: _money(payment.amountXaf)),
+              _Row(label: 'Method', value: payment.method.label()),
+              _Row(label: 'Date', value: _date(payment.initiatedAt)),
+              _Row(label: 'Reference', value: _shortReference(payment.id)),
+              _Row(
+                label: 'Receipt',
+                value: payment.receiptAvailable ? 'Available' : 'Not available',
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onViewDetails,
+                  icon: const Icon(Icons.open_in_new, size: 17),
+                  label: const Text('View details'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class PaymentStatusBadge extends StatelessWidget {
-  const PaymentStatusBadge({required this.status, super.key});
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
 
   final PaymentStatus status;
 
   @override
   Widget build(BuildContext context) {
+    final color = switch (status) {
+      PaymentStatus.paid => const Color(0xFF15803D),
+      PaymentStatus.failed ||
+      PaymentStatus.cancelled ||
+      PaymentStatus.expired => const Color(0xFFB91C1C),
+      PaymentStatus.refunded => const Color(0xFF6D28D9),
+      _ => const Color(0xFFB45309),
+    };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: status.background,
+        color: color.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         status.label,
         style: TextStyle(
-          color: status.foreground,
+          color: color,
           fontSize: 12,
           fontWeight: FontWeight.w800,
         ),
@@ -53,42 +101,30 @@ class PaymentStatusBadge extends StatelessWidget {
   }
 }
 
-class PaymentHistoryCard extends StatelessWidget {
-  const PaymentHistoryCard({required this.payment, super.key});
+class _Row extends StatelessWidget {
+  const _Row({required this.label, required this.value});
 
-  final Payment payment;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    return _PaymentCardFrame(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  payment.transactionReference ?? payment.id,
-                  style: const TextStyle(
-                    color: Color(0xFF0F172A),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              PaymentStatusBadge(status: payment.status),
-            ],
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Color(0xFF64748B)),
+            ),
           ),
-          const SizedBox(height: 16),
-          _PaymentDetail(label: 'Date', value: _dateLabel(payment.paidAt)),
-          const SizedBox(height: 8),
-          _PaymentDetail(label: 'Amount', value: _formatXaf(payment.amountXaf)),
-          const SizedBox(height: 8),
-          _PaymentDetail(label: 'Method', value: payment.method.label),
-          const SizedBox(height: 18),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.download_outlined),
-            label: const Text('Download Receipt'),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -96,72 +132,35 @@ class PaymentHistoryCard extends StatelessWidget {
   }
 }
 
-class _PaymentCardFrame extends StatelessWidget {
-  const _PaymentCardFrame({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: child,
-    );
-  }
+String _shortReference(String id) {
+  final suffix = id.length <= 12 ? id : id.substring(id.length - 12);
+  return 'CG-${suffix.toUpperCase()}';
 }
 
-class _PaymentDetail extends StatelessWidget {
-  const _PaymentDetail({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(label, style: const TextStyle(color: Color(0xFF64748B))),
-        const Spacer(),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-String _dateLabel(DateTime? date) {
-  if (date == null) return 'Pending';
-  return '${date.day} ${_monthName(date.month)} ${date.year}';
-}
-
-String _formatXaf(int amount) {
-  return '${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')} XAF';
-}
-
-String _monthName(int month) {
-  const names = [
-    'January',
-    'February',
-    'March',
-    'April',
+String _date(DateTime value) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
     'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
-  return names[month - 1];
+  return '${value.day} ${months[value.month - 1]} ${value.year}';
+}
+
+String _money(int amount) {
+  final digits = amount.toString();
+  final buffer = StringBuffer();
+  for (var index = 0; index < digits.length; index++) {
+    if (index > 0 && (digits.length - index) % 3 == 0) buffer.write(' ');
+    buffer.write(digits[index]);
+  }
+  return '${buffer.toString()} FCFA';
 }

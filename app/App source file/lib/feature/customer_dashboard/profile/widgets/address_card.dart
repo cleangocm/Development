@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:ultrawash/core/cleango/models/address.dart';
 
 class AddressCard extends StatelessWidget {
-  const AddressCard({required this.address, super.key});
+  const AddressCard({required this.address, required this.onEdit, super.key});
 
   final Address address;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +68,7 @@ class AddressCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: onEdit,
               icon: const Icon(Icons.edit_location_alt_outlined),
               label: const Text('Edit Address'),
             ),

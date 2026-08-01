@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ultrawash/core/cleango/collections/collection_booking_service.dart';
 import 'package:ultrawash/core/cleango/models/collection.dart';
+import 'package:ultrawash/core/cleango/payments/payment_request_context.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/controller/collections_tab_controller.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/widgets/collection_status_card.dart';
+import 'package:ultrawash/feature/customer_dashboard/payments/payment_method_screen.dart';
 
 class CollectionDetailsScreen extends StatefulWidget {
   const CollectionDetailsScreen({
@@ -24,8 +26,17 @@ class _CollectionDetailsScreenState extends State<CollectionDetailsScreen> {
   late WasteCollection _collection = widget.initialCollection;
   bool _cancelling = false;
   bool _accepting = false;
+  bool _paying = false;
   bool _changed = false;
   bool _canPop = false;
+
+  bool get _canPay =>
+      _collection.displayAmount != null &&
+      _collection.displayAmount! > 0 &&
+      _collection.paymentStatus != CollectionPaymentStatus.paid &&
+      _collection.status != CollectionStatus.cancelled &&
+      (_collection.bookingMode != CollectionBookingMode.oneTimePhotoQuote ||
+          _collection.quotationStatus == CollectionQuotationStatus.accepted);
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +145,30 @@ class _CollectionDetailsScreenState extends State<CollectionDetailsScreen> {
                 ),
               ),
             ],
+            if (_canPay) ...[
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _paying || _accepting || _cancelling
+                    ? null
+                    : _openPayment,
+                icon: _paying
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.payments_outlined),
+                label: Text(
+                  _paying ? 'Opening payment...' : 'Choose payment method',
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+              ),
+            ],
             if (_collection.canCancel) ...[
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -213,6 +248,33 @@ class _CollectionDetailsScreenState extends State<CollectionDetailsScreen> {
       if (!mounted) return;
       setState(() => _accepting = false);
       _showMessage(_message(error, action: 'accept this quotation'));
+    }
+  }
+
+  Future<void> _openPayment() async {
+    if (_paying || !_canPay) return;
+    setState(() => _paying = true);
+    try {
+      final changed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => PaymentMethodScreen(
+            paymentContext: PaymentRequestContext.forCollection(_collection),
+          ),
+        ),
+      );
+      if (!mounted) return;
+      if (changed == true) {
+        final refreshed = await widget.controller.getById(_collection.id);
+        if (!mounted) return;
+        setState(() {
+          if (refreshed != null) _collection = refreshed;
+          _changed = true;
+        });
+      }
+    } catch (error) {
+      if (mounted) _showMessage(_message(error, action: 'open payment'));
+    } finally {
+      if (mounted) setState(() => _paying = false);
     }
   }
 

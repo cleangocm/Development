@@ -8,6 +8,7 @@ import 'package:ultrawash/core/cleango/repositories/customer_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/notification_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/payment_repository.dart';
 import 'package:ultrawash/core/cleango/repositories/subscription_repository.dart';
+import 'package:ultrawash/core/cleango/repositories/support_request_repository.dart';
 import 'package:ultrawash/core/cleango/session/current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/firebase_current_customer_provider.dart';
 import 'package:ultrawash/core/cleango/session/mock_current_customer_provider.dart';
@@ -30,6 +31,7 @@ class DashboardDependencies {
     required this.notificationRepository,
     this.profileImageStorage,
     this.collectionQuoteImageStorage,
+    this.supportRequestRepository,
   });
 
   factory DashboardDependencies.mock() {
@@ -265,6 +267,7 @@ class DashboardDependencies {
       notificationRepository: repositories.notificationRepository,
       profileImageStorage: profileImageStorage,
       collectionQuoteImageStorage: collectionQuoteImageStorage,
+      supportRequestRepository: repositories.supportRequestRepository,
     );
   }
 
@@ -276,4 +279,5 @@ class DashboardDependencies {
   final NotificationRepository notificationRepository;
   final ProfileImageStorage? profileImageStorage;
   final CollectionQuoteImageStorage? collectionQuoteImageStorage;
+  final SupportRequestRepository? supportRequestRepository;
 }

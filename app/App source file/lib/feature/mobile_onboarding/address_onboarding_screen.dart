@@ -3,13 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:ultrawash/core/cleango/models/customer.dart';
 import 'package:ultrawash/core/cleango/onboarding/customer_address_service.dart';
 import 'package:ultrawash/core/cleango/onboarding/location_onboarding_policy.dart';
 import 'package:ultrawash/core/cleango/onboarding/service_zone_validator.dart';
 import 'package:ultrawash/feature/customer_dashboard/customer_dashboard_shell.dart';
 
 class AddressOnboardingScreen extends StatefulWidget {
-  const AddressOnboardingScreen({super.key});
+  const AddressOnboardingScreen({
+    super.key,
+    this.customer,
+    this.editing = false,
+  });
+
+  final Customer? customer;
+  final bool editing;
 
   @override
   State<AddressOnboardingScreen> createState() =>
@@ -18,10 +26,10 @@ class AddressOnboardingScreen extends StatefulWidget {
 
 class _AddressOnboardingScreenState extends State<AddressOnboardingScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _address = TextEditingController();
-  final _district = TextEditingController();
-  final _city = TextEditingController(text: 'Yaoundé');
+  late final TextEditingController _name;
+  late final TextEditingController _address;
+  late final TextEditingController _district;
+  late final TextEditingController _city;
   final _service = CustomerAddressService();
   final _validator = const ServiceZoneValidator();
   final _locationPolicy = const LocationOnboardingPolicy();
@@ -33,6 +41,19 @@ class _AddressOnboardingScreenState extends State<AddressOnboardingScreen> {
   double? _accuracyMeters;
   String? _message;
   bool _unsupported = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final customer = widget.customer;
+    final address = customer?.primaryAddress;
+    _name = TextEditingController(text: customer?.fullName ?? '');
+    _address = TextEditingController(text: address?.street ?? '');
+    _district = TextEditingController(text: address?.region ?? '');
+    _city = TextEditingController(text: address?.city ?? 'Yaounde');
+    _latitude = address?.latitude;
+    _longitude = address?.longitude;
+  }
 
   @override
   void dispose() {
@@ -213,7 +234,11 @@ class _AddressOnboardingScreenState extends State<AddressOnboardingScreen> {
         ),
       );
       if (!mounted) return;
-      Get.offAll(() => const CleanGoCustomerDashboardShell());
+      if (widget.editing) {
+        Navigator.of(context).pop(true);
+      } else {
+        Get.offAll(() => const CleanGoCustomerDashboardShell());
+      }
     } on UnsupportedServiceAreaException {
       _setUnsupportedArea();
     } catch (_) {
@@ -231,7 +256,13 @@ class _AddressOnboardingScreenState extends State<AddressOnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Set up your service address')),
+      appBar: AppBar(
+        title: Text(
+          widget.editing
+              ? 'Edit service address'
+              : 'Set up your service address',
+        ),
+      ),
       body: SafeArea(
         child: Form(
           key: _formKey,
@@ -330,7 +361,11 @@ class _AddressOnboardingScreenState extends State<AddressOnboardingScreen> {
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Save address and continue'),
+                    : Text(
+                        widget.editing
+                            ? 'Save address changes'
+                            : 'Save address and continue',
+                      ),
               ),
             ],
           ),

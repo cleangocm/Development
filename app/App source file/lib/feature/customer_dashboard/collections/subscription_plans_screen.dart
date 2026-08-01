@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ultrawash/core/cleango/models/address.dart';
 import 'package:ultrawash/core/cleango/models/subscription.dart';
+import 'package:ultrawash/core/cleango/payments/payment_request_context.dart';
 import 'package:ultrawash/core/cleango/subscriptions/subscription_request_service.dart';
 import 'package:ultrawash/feature/customer_dashboard/collections/controller/subscription_plans_controller.dart';
+import 'package:ultrawash/feature/customer_dashboard/payments/payment_method_screen.dart';
 
 class SubscriptionPlansScreen extends StatefulWidget {
   const SubscriptionPlansScreen({
@@ -146,27 +148,54 @@ class _SubscriptionPlansScreenState extends State<SubscriptionPlansScreen> {
         addressId: address.id,
       );
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(
-            plan.requiresQuotation
-                ? 'Review request submitted'
-                : 'Subscription request submitted',
-          ),
-          content: Text(
-            plan.requiresQuotation
-                ? 'CLEANGO will review your needs before setting a final price. The plan is not active and no payment has been recorded.'
-                : 'Your request is pending payment. The plan is not active and no payment has been recorded.${result.wasDuplicate ? ' This was the existing request.' : ''}',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done'),
+      if (plan.requiresQuotation) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Review request submitted'),
+            content: const Text(
+              'CLEANGO will review your needs before setting a final price. The plan is not active and no payment has been recorded.',
             ),
-          ],
-        ),
-      );
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Done'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        final continueToPayment = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Subscription pending payment'),
+            content: Text(
+              'Your plan is not active until a trusted payment confirmation is received.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Pay later'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Choose payment method'),
+              ),
+            ],
+          ),
+        );
+        if (continueToPayment == true && mounted) {
+          await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => PaymentMethodScreen(
+                paymentContext: PaymentRequestContext.forSubscription(
+                  result.subscription,
+                ),
+              ),
+            ),
+          );
+        }
+      }
       _requestIds.remove(plan.id);
     } catch (error) {
       if (mounted) _showMessage(_message(error));

@@ -43,7 +43,6 @@ dependencies:
   google_fonts: ^6.3.2
   google_sign_in: ^6.3.0
   image_picker: 1.1.2
-  flutter_stripe: 12.3.0
   gradient_borders: ^1.0.2
   iconsax: ^0.0.8
   http: ^1.6.0
@@ -58,6 +57,8 @@ dependencies:
   firebase_storage: ^13.4.5
   geolocator: ^14.0.2
   crypto: ^3.0.7
+  flutter_local_notifications: ^22.2.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -116,6 +117,3 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-
-dependency_overrides:
-  stripe_android: 12.3.0

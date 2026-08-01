@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/collection_booking_screen.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/controller/collections_tab_controller.dart';
+import 'package:ultrawash/feature/customer_dashboard/collections/subscription_management_screen.dart';
 import 'package:ultrawash/feature/customer_dashboard/home/controller/home_tab_controller.dart';
 import 'package:ultrawash/feature/customer_dashboard/home/widgets/active_subscription_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/home/widgets/customer_greeting_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/home/widgets/next_collection_card.dart';
 import 'package:ultrawash/feature/customer_dashboard/home/widgets/quick_actions_section.dart';
 import 'package:ultrawash/feature/customer_dashboard/home/widgets/recent_activity_section.dart';
+import 'package:ultrawash/feature/customer_dashboard/payments/payments_tab.dart';
+import 'package:ultrawash/feature/customer_dashboard/support/support_screen.dart';
 
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key, HomeTabController? controller})
-    : _controller = controller;
+  const HomeTab({
+    super.key,
+    HomeTabController? controller,
+    this.onSelectDashboardTab,
+  }) : _controller = controller;
 
   final HomeTabController? _controller;
+  final ValueChanged<int>? onSelectDashboardTab;
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -34,9 +43,55 @@ class _HomeTabState extends State<HomeTab> {
           return _HomeErrorState(onRetry: _retry);
         }
 
-        return _HomeContent(data: snapshot.data ?? HomeTabViewData.empty());
+        return _HomeContent(
+          data: snapshot.data ?? HomeTabViewData.empty(),
+          onRequestPickup: _openBooking,
+          onManageSubscription: _openSubscription,
+          onPaymentHistory: _openPayments,
+          onContactSupport: _openSupport,
+        );
       },
     );
+  }
+
+  Future<void> _openBooking() async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => CollectionBookingScreen(
+          controller: CollectionsTabController.mock(),
+        ),
+      ),
+    );
+    if (changed == true && mounted) _retry();
+  }
+
+  Future<void> _openSubscription() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const SubscriptionManagementScreen()),
+    );
+    if (mounted) _retry();
+  }
+
+  void _openPayments() {
+    final selectTab = widget.onSelectDashboardTab;
+    if (selectTab != null) {
+      selectTab(2);
+      return;
+    }
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Payment history')),
+          body: const PaymentsTab(),
+        ),
+      ),
+    );
+  }
+
+  void _openSupport() {
+    Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const SupportScreen()));
   }
 
   void _retry() {
@@ -47,9 +102,19 @@ class _HomeTabState extends State<HomeTab> {
 }
 
 class _HomeContent extends StatelessWidget {
-  const _HomeContent({required this.data});
+  const _HomeContent({
+    required this.data,
+    required this.onRequestPickup,
+    required this.onManageSubscription,
+    required this.onPaymentHistory,
+    required this.onContactSupport,
+  });
 
   final HomeTabViewData data;
+  final VoidCallback onRequestPickup;
+  final VoidCallback onManageSubscription;
+  final VoidCallback onPaymentHistory;
+  final VoidCallback onContactSupport;
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +129,12 @@ class _HomeContent extends StatelessWidget {
         const SizedBox(height: 16),
         _OverviewCards(data: data),
         const SizedBox(height: 24),
-        const QuickActionsSection(),
+        QuickActionsSection(
+          onRequestPickup: onRequestPickup,
+          onManageSubscription: onManageSubscription,
+          onPaymentHistory: onPaymentHistory,
+          onContactSupport: onContactSupport,
+        ),
         const SizedBox(height: 24),
         RecentActivitySection(
           activities: data.recentActivities
